@@ -278,6 +278,69 @@ static int get_jump_table_entry(uint32_t offset)
 	return -1;
 }
 
+static void disasm_new(uint32_t *buf, int sizedwords)
+{
+	uint32_t *instrs = buf;
+	const int jmptbl_start = instrs[0];
+	uint32_t *jmptbl = &buf[jmptbl_start];
+	int i;
+uint32_t max = 0;
+
+	/* parse jumptable: */
+	for (i = 0; i < 0x7f; i++) {
+		unsigned offset = jmptbl[i];
+		unsigned n = i + CP_NOP;
+		add_jump_table_entry(n, offset);
+if (max < jmptbl[i]) max = jmptbl[i];
+	}
+printf("max: %08x\n", max);
+
+	/* print instructions: */
+	for (i = 0; i < jmptbl_start; i++) {
+		int jump_label_idx = get_jump_table_entry(i);
+
+		if (jump_label_idx >= 0) {
+			int j;
+			printf("\n");
+			for (j = 0; j < jump_labels[jump_label_idx].num_jump_labels; j++) {
+				uint32_t jump_label = jump_labels[jump_label_idx].jump_labels[j];
+				char *name = getpm4(jump_label);
+				if (name) {
+					printf("%s:\n", name);
+				} else {
+					printf("UNKN%d:\n", jump_label);
+				}
+			}
+		}
+
+		printf("  %04x: %08x\n", i, instrs[i]);
+	}
+
+	/* print jumptable: */
+	printf(";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n");
+	printf("; JUMP TABLE\n");
+/* NOTE: could be upper bits being zero is a jump instruction, so
+ * the jumptable might actually just be a normal table of jmp
+ * instructions.. so upper 3 or 4 bits is opcode??  absolute jmp
+ * target offset encoded at bottom N bits
+ *
+ * 32b instruction set..
+ */
+	for (i = 0; i < 0x7f; i++) {
+		int n = i + CP_NOP;
+		uint32_t offset = jmptbl[i];
+		char *name = getpm4(n);
+		printf("%3d %02x: ", n, n);
+		printf("%04x", offset);
+		if (name) {
+			printf("   ; %s", name);
+		} else {
+			printf("   ; UNKN%d", n);
+		}
+		printf("\n");
+	}
+}
+
 static void disasm_pm4(uint32_t *buf, int sizedwords)
 {
 	int i, j, ninstr = sizedwords / 3;
@@ -580,7 +643,12 @@ int main(int argc, char **argv)
 
 	file = argv[1];
 
-	if (strstr(file, "a4")) {
+	if (strstr(file, "a5")) {
+		printf("; matching a5xx\n");
+		gpuver = 500;
+		name = "A5XX";
+		num_pfp_table_entries = 64;
+	} else if (strstr(file, "a4")) {
 		printf("; matching a4xx\n");
 		gpuver = 400;
 		name = "A4XX";
@@ -634,15 +702,25 @@ int main(int argc, char **argv)
 			printf("Editing PM4 %s\n", file);
 			if (edit_pm4(&buf[1], sz/4 - 1))
 				writefile(file, buf, sz);
+		} else if (gpuver >= 500) {
+			printf("; Disassembling microcode (PM4) %s:\n", file);
+			printf("; Version: %08x\n\n", buf[1]);
+			disasm_new(&buf[2], sz/4 - 2);
 		} else {
 			printf("; Disassembling PM4 %s:\n", file);
 			printf("; Version: %08x\n\n", buf[0]);
 			disasm_pm4(&buf[1], sz/4 - 1);
 		}
 	} else if (strstr(file, "_pfp")) {
-		printf("; Disassembling PFP %s:\n", file);
-		printf("; Version: %08x\n\n", buf[0]);
-		disasm_pfp(&buf[1], sz/4 - 1);
+		if (gpuver >= 500) {
+			printf("; Disassembling microcode (PFP) %s:\n", file);
+			printf("; Version: %08x\n\n", buf[1]);
+			disasm_new(&buf[2], sz/4 - 2);
+		} else {
+			printf("; Disassembling PFP %s:\n", file);
+			printf("; Version: %08x\n\n", buf[0]);
+			disasm_pfp(&buf[1], sz/4 - 1);
+		}
 	}
 
 	return 0;
