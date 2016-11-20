@@ -30,7 +30,8 @@
  * sizes when GMEM overflows..
  */
 
-#include <GLES3/gl3.h>
+#include <GLES3/gl31.h>
+#include <assert.h>
 
 #include "test-util-3d.h"
 
@@ -40,6 +41,7 @@ static EGLint const config_attribute_list[] = {
 	EGL_RED_SIZE, 8,
 	EGL_GREEN_SIZE, 8,
 	EGL_BLUE_SIZE, 8,
+	EGL_ALPHA_SIZE, 8,
 	EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
 	EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 	EGL_NONE
@@ -107,6 +109,22 @@ static const GLenum bufs[16] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1,
 		GL_COLOR_ATTACHMENT11, GL_COLOR_ATTACHMENT12, GL_COLOR_ATTACHMENT13,
 		GL_COLOR_ATTACHMENT14, GL_COLOR_ATTACHMENT15};
 
+static void do_readback(int mrt, GLbitfield clearmask)
+{
+	if (mrt) {
+		int i;
+		for (i = 0; i < mrt; i++)
+			readbuf(GL_COLOR_ATTACHMENT0 + i);
+#if 0
+		if (clearmask & GL_DEPTH_BUFFER_BIT)
+			readbuf(GL_DEPTH_COMPONENT);
+		if (clearmask & GL_STENCIL_BUFFER_BIT)
+			readbuf(GL_STENCIL_INDEX);
+#endif
+	} else {
+		readback();
+	}
+}
 
 /* Run through multiple variants to detect mrt settings
  */
@@ -131,6 +149,22 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 			-0.45 + 0.1,  0.75 + 0.1, 0.1 + 0.1,
 			 0.45 + 0.1,  0.75 + 0.1, 0.1 + 0.1 };
 	EGLSurface surface;
+
+	static const struct {
+		GLenum ifmt;
+		GLenum fmt;
+		GLenum type;
+	} fmts[MAX_MRT] = {
+			{ GL_RGBA8,      GL_RGBA,         GL_UNSIGNED_BYTE },
+			{ GL_RGB8,       GL_RGB,          GL_UNSIGNED_BYTE },
+			{ GL_R8,         GL_RED,          GL_UNSIGNED_BYTE },
+			{ GL_RGB16F,     GL_RGB,          GL_HALF_FLOAT    },
+			{ GL_RGBA32UI ,  GL_RGBA_INTEGER, GL_UNSIGNED_INT  },
+			{ GL_RGB10_A2UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT_2_10_10_10_REV },
+			{ GL_RGBA8UI,    GL_RGBA_INTEGER, GL_UNSIGNED_BYTE },
+			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_BYTE },
+	};
+	assert(fmts[MAX_MRT-1].ifmt);
 
 	RD_START("mrt-fbo", "%dx%d, mrt=%04x, mask=%04x, zs=%d", w, h, mrt, mask, zs);
 
@@ -159,9 +193,11 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 
 	link_program(program);
 
-	GCHK(glGenFramebuffers(1, &fbo));
-	GCHK(glGenTextures(mrt+1, fbotex));
-	GCHK(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
+	if (mrt) {
+		GCHK(glGenFramebuffers(1, &fbo));
+		GCHK(glGenTextures(mrt+1, fbotex));
+		GCHK(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
+	}
 
 	for (i = 0; i < mrt; i++) {
 		GCHK(glBindTexture(GL_TEXTURE_2D, fbotex[i]));
@@ -169,11 +205,13 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
 		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
 		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-		GCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0));
+		DEBUG_MSG("ifmt=%s, fmt=%s, type=%s", formatname(fmts[i].ifmt),
+				formatname(fmts[i].fmt), typename(fmts[i].type));
+		GCHK(glTexImage2D(GL_TEXTURE_2D, 0, fmts[i].ifmt, width, height, 0, fmts[i].fmt, fmts[i].type, 0));
 		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, bufs[i], GL_TEXTURE_2D, fbotex[i], 0));
 	}
 
-	if (zs) {
+	if (mrt && zs) {
 		GLenum intfmt, fmt, type, attach;
 		DEBUG_MSG("zs=%d\n", zs);
 		switch (zs) {
@@ -219,7 +257,9 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 
 	DEBUG_MSG("status=%04x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
 
-	GCHK(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
+	if (mrt)
+		GCHK(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
+
 	GCHK(glViewport(0, 0, width, height));
 
 	GCHK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vertices));
@@ -247,11 +287,16 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 	}
 
 	if (clearmask & GL_DEPTH_BUFFER_BIT) {
-		GCHK(glClearDepthf(0.0));
+		GCHK(glClearDepthf(0.5));
 	}
 
 	if (clearmask & GL_STENCIL_BUFFER_BIT) {
-		GCHK(glClearStencil(0));
+		GCHK(glClearStencil(5));
+	}
+
+	if (!mrt) {
+		clearmask |= GL_COLOR_BUFFER_BIT;
+		glClearColor(0.25, 0.5, 0.75, 1.0);
 	}
 
 	if (clearmask) {
@@ -270,10 +315,13 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 		GCHK(glEnable(GL_STENCIL_TEST));
 	}
 
+	/* for a5xx, encourage blob to use GMEM instead of BYPASS */
+	GCHK(glEnable(GL_BLEND));
+
 	GCHK(glUniform4fv(uniform_location, 1, quad_color));
 	GCHK(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 	GCHK(glFlush());
-	readback();
+	do_readback(mrt, clearmask);
 
 	GCHK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vertices2));
 	GCHK(glEnableVertexAttribArray(0));
@@ -283,6 +331,7 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 
 //	ECHK(eglSwapBuffers(display, surface));
 	GCHK(glFlush());
+	do_readback(mrt, clearmask);
 
 	ECHK(eglDestroySurface(display, surface));
 
@@ -293,17 +342,27 @@ void test_mrt_fbo(unsigned w, unsigned h, int mrt, unsigned mask, int zs)
 
 int main(int argc, char *argv[])
 {
+	int sizes[][2] = {
+			{  32,  32 },
+			{ 128, 128 },
+			{ 256, 128 },
+			{ 128, 256 },
+			{ 128, 512 },
+			{ 512, 128 },
+			{  32, 128 },
+			{ 512, 512 },
+	};
 	int i;
+
 	TEST_START();
-	TEST(test_mrt_fbo(64, 64, 0, 0, 1));
-	TEST(test_mrt_fbo(64, 64, 0, 0, 2));
-	TEST(test_mrt_fbo(64, 64, 0, 0, 3));
-	TEST(test_mrt_fbo(128, 128, 0, 0, 1));
-	TEST(test_mrt_fbo(128, 128, 0, 0, 2));
-	TEST(test_mrt_fbo(128, 128, 0, 0, 3));
-	TEST(test_mrt_fbo(256, 128, 0, 0, 1));
-	TEST(test_mrt_fbo(256, 128, 0, 0, 2));
-	TEST(test_mrt_fbo(256, 128, 0, 0, 3));
+	for (i = 0; i < ARRAY_SIZE(sizes); i++) {
+		TEST(test_mrt_fbo(sizes[i][0], sizes[i][1], 0, 0, 0));
+		TEST(test_mrt_fbo(sizes[i][0], sizes[i][1], 1, 0, 0));
+		TEST(test_mrt_fbo(sizes[i][0], sizes[i][1], 1, 0, 1));
+		TEST(test_mrt_fbo(sizes[i][0], sizes[i][1], 1, 0, 2));
+		TEST(test_mrt_fbo(sizes[i][0], sizes[i][1], 1, 0, 3));
+		TEST(test_mrt_fbo(sizes[i][0], sizes[i][1], 1, 0, 4));
+	}
 	for (i = 0; i <= MAX_MRT; i++)
 		TEST(test_mrt_fbo(64, 64, i, 0, 1));
 	for (i = 0; i <= MAX_MRT; i++)

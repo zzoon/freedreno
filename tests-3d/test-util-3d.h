@@ -189,6 +189,9 @@ formatname(GLenum format)
 #ifdef GL_RGB32UI
 	ENUM(GL_RGB32UI);
 #endif
+#ifdef GL_RGBA32UI
+	ENUM(GL_RGBA32UI);
+#endif
 #ifdef GL_RGB32F
 	ENUM(GL_RGB32F);
 #endif
@@ -458,6 +461,41 @@ static void readback(void)
 	char buf[64];
 	GCHK(glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, buf));
 }
+
+#ifdef GL_READ_BUFFER
+static void readbuf(GLenum readbuf)
+{
+	char buf[64];
+	GLenum fmt, type;
+	int saved;
+
+	switch (readbuf) {
+#ifdef GL_STENCIL_INDEX
+	case GL_STENCIL_INDEX:
+#endif
+	case GL_DEPTH_COMPONENT:
+		fmt = readbuf;
+		readbuf = GL_BACK;
+		type = GL_FLOAT;
+		break;
+	case GL_DEPTH_STENCIL:
+		fmt = readbuf;
+		readbuf = GL_BACK;
+		type = GL_UNSIGNED_INT_24_8;
+		break;
+	default:
+		fmt = GL_RGBA;
+		type = GL_UNSIGNED_BYTE;
+		break;
+	}
+
+	GCHK(glGetIntegerv(GL_READ_BUFFER, &saved));
+	DEBUG_MSG("readbuf=%04x, fmt=%s, type=%s", readbuf, formatname(fmt), typename(type));
+	GCHK(glReadBuffer(readbuf));
+	GCHK(glReadPixels(0, 0, 1, 1, fmt, type, buf));
+	GCHK(glReadBuffer(saved));
+}
+#endif
 
 static GLuint
 get_program(const char *vertex_shader_source, const char *fragment_shader_source)
