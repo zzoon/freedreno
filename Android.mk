@@ -216,6 +216,14 @@ LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv2
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE    := test-quad-textured2
+LOCAL_SRC_FILES := tests-3d/test-quad-textured2.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC -std=c99
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
 LOCAL_MODULE    := test-quad-textured-3d
 LOCAL_SRC_FILES := tests-3d/test-quad-textured-3d.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
@@ -232,19 +240,19 @@ LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE    := test-quad-textured2
-LOCAL_SRC_FILES := tests-3d/test-quad-textured2.c
+LOCAL_MODULE    := test-query
+LOCAL_SRC_FILES := tests-3d/test-query.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
 LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE    := test-query
-LOCAL_SRC_FILES := tests-3d/test-query.c
+LOCAL_MODULE    := test-restore-resolve
+LOCAL_SRC_FILES := tests-3d/test-restore-resolve.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
-LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv2
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -277,6 +285,14 @@ LOCAL_SRC_FILES := tests-3d/test-tex.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
 LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv2
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-tex-fbo
+LOCAL_SRC_FILES := tests-3d/test-tex-fbo.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC -std=c99
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -317,12 +333,4 @@ LOCAL_SRC_FILES := tests-3d/test-vertex.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
 LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
-include $(BUILD_EXECUTABLE)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE    := test-restore-resolve
-LOCAL_SRC_FILES := tests-3d/test-restore-resolve.c
-LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
-LOCAL_CFLAGS := -DBIONIC -std=c99
-LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv2
 include $(BUILD_EXECUTABLE)
