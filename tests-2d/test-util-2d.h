@@ -153,6 +153,7 @@ static void free_pixmap(PixmapPtr pix)
 
 static void dump_pixmap(PixmapPtr pixmap, char *fmt, ...)
 {
+#if 0
 	char filename[256];
 
 	va_list args;
@@ -163,6 +164,7 @@ static void dump_pixmap(PixmapPtr pixmap, char *fmt, ...)
 
 	CHK(c2dReadSurface(pixmap->id, C2D_SURFACE_RGB_HOST, &pixmap->def, 0, 0));
 	wrap_bmp_dump(pixmap->ptr, pixmap->width, pixmap->height, pixmap->pitch, filename);
+#endif
 }
 
 

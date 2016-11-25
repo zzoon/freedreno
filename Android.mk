@@ -20,7 +20,7 @@ include $(BUILD_SHARED_LIBRARY)
 
 
 #
-# Test Apps:
+# 3D Test Apps:
 #
 
 include $(CLEAR_VARS)
@@ -333,4 +333,72 @@ LOCAL_SRC_FILES := tests-3d/test-vertex.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
 LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+include $(BUILD_EXECUTABLE)
+
+#
+# 2D Test Apps:
+#
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-composite2
+LOCAL_SRC_FILES := tests-2d/test-composite2.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-composite
+LOCAL_SRC_FILES := tests-2d/test-composite.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-copy
+LOCAL_SRC_FILES := tests-2d/test-copy.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-fb
+LOCAL_SRC_FILES := tests-2d/test-fb.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-fill2
+LOCAL_SRC_FILES := tests-2d/test-fill2.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-fill
+LOCAL_SRC_FILES := tests-2d/test-fill.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-multi
+LOCAL_SRC_FILES := tests-2d/test-multi.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-replay
+LOCAL_SRC_FILES := tests-2d/test-replay.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
 include $(BUILD_EXECUTABLE)
