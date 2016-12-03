@@ -33,6 +33,9 @@
 #include <GLES2/gl2ext.h>
 #endif
 
+#include <ctype.h>
+#include <unistd.h>
+
 /*****************************************************************************/
 
 #define ECHK(x) do { \

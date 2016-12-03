@@ -52,7 +52,8 @@ typedef int Bool;
 
 typedef struct {
 	C2D_RGB_SURFACE_DEF def;
-	int width, height, pitch, id;
+	int width, height, pitch;
+	uint32_t id;
 	void *ptr;
 } Pixmap, *PixmapPtr;
 

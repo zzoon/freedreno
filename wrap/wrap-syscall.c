@@ -25,6 +25,7 @@
  * various syscalls and log what happens
  */
 
+#include <ctype.h>
 
 #include "wrap.h"
 
@@ -1173,7 +1174,8 @@ static void kgsl_ioctl_post(int fd, unsigned long int request, void *ptr, int re
 	}
 }
 
-int ioctl(int fd, unsigned long int request, ...)
+// XXX android/bionic has messed up ioctl signature:
+int ioctl(int fd, int request, ...)
 {
 	int ioc_size = _IOC_SIZE(request);
 	int ret;

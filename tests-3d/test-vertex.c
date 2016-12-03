@@ -84,6 +84,14 @@ const char *fragment_shader_source =
 		"}                            \n";
 
 
+void _glVertexAttribPointer (GLuint indx, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid* ptr)
+{
+	DEBUG_MSG("indx=%d, size=%d, type=%s, normalized=%d, stride=%d, ptr=%p",
+			indx, size, typename(type), normalized, stride, ptr);
+	glVertexAttribPointer (indx, size, type, normalized, stride, ptr);
+	glEnableVertexAttribArray(indx);
+}
+
 /* test to study vertex fetch instructions/bindings */
 void test_vertex(GLint *sizes, GLenum *types)
 {
@@ -120,14 +128,6 @@ void test_vertex(GLint *sizes, GLenum *types)
 			0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
 			0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f };
 	EGLSurface surface;
-
-	void _glVertexAttribPointer (GLuint indx, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid* ptr)
-	{
-		DEBUG_MSG("indx=%d, size=%d, type=%s, normalized=%d, stride=%d, ptr=%p",
-				indx, size, typename(type), normalized, stride, ptr);
-		glVertexAttribPointer (indx, size, type, normalized, stride, ptr);
-		glEnableVertexAttribArray(indx);
-	}
 
 	RD_START("vertex", "sizes: %d, %d, %d, %d, types: %s, %s, %s, %s",
 			sizes[0], sizes[1], sizes[2], sizes[3],
