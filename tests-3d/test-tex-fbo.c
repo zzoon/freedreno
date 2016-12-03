@@ -33,6 +33,10 @@
 #include <GLES3/gl31.h>
 #include <assert.h>
 
+#define GL_BGRA_EXT                                             0x80E1
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT                       0x8365
+#define GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT                       0x8366
+
 #include "test-util-3d.h"
 
 static EGLint const config_attribute_list[] = {
@@ -215,15 +219,29 @@ int main(int argc, char *argv[])
 		GLenum fmt;
 		GLenum type;
 	} fmts[] = {
+			{ GL_BGRA_EXT,   GL_BGRA_EXT,     GL_UNSIGNED_BYTE },
+			{ GL_BGRA_EXT,   GL_BGRA_EXT,     GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT },
+			{ GL_BGRA_EXT,   GL_BGRA_EXT,     GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT },
 			{ GL_RGBA8,      GL_RGBA,         GL_UNSIGNED_BYTE },
 			{ GL_RGB8,       GL_RGB,          GL_UNSIGNED_BYTE },
 			{ GL_R8,         GL_RED,          GL_UNSIGNED_BYTE },
-			{ GL_RGB16F,     GL_RGB,          GL_HALF_FLOAT    },
+			{ GL_RGB565,     GL_RGB,          GL_UNSIGNED_SHORT_5_6_5 },
+			{ GL_RGBA4,      GL_RGBA,         GL_UNSIGNED_SHORT_4_4_4_4 },
+			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_SHORT_5_5_5_1 },
+			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_INT_2_10_10_10_REV },
 // blob seems to choke on these:
 //			{ GL_RGBA32UI ,  GL_RGBA_INTEGER, GL_UNSIGNED_INT  },
 //			{ GL_RGB10_A2UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT_2_10_10_10_REV },
 //			{ GL_RGBA8UI,    GL_RGBA_INTEGER, GL_UNSIGNED_BYTE },
 			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_BYTE },
+			{ GL_R16F,       GL_RED,          GL_HALF_FLOAT },
+			{ GL_R32F,       GL_RED,          GL_FLOAT },
+			{ GL_RG16F,      GL_RG,           GL_HALF_FLOAT },
+			{ GL_RG32F,      GL_RG,           GL_FLOAT },
+			{ GL_RGB16F,     GL_RGB,          GL_HALF_FLOAT },
+			{ GL_RGB32F,     GL_RGB,          GL_FLOAT },
+			{ GL_RGBA16F,    GL_RGBA,         GL_HALF_FLOAT },
+			{ GL_RGBA32F,    GL_RGBA,         GL_FLOAT },
 	};
 	int i;
 
