@@ -654,12 +654,18 @@ static const char *propnames[] = {
 		PROP_INFO(KGSL_PROP_SP_GENERIC_MEM),
 		PROP_INFO(KGSL_PROP_UCODE_VERSION),
 		PROP_INFO(KGSL_PROP_GPMU_VERSION),
+		PROP_INFO(KGSL_PROP_HIGHEST_BANK_BIT),
+		PROP_INFO(KGSL_PROP_DEVICE_BITNESS),
+		PROP_INFO(KGSL_PROP_DEVICE_QDSS_STM),
 };
 
 static void kgsl_ioctl_device_getproperty_post(int fd,
 		struct kgsl_device_getproperty *param)
 {
-	printf("\t\ttype:\t\t%08x (%s)\n", param->type, propnames[param->type]);
+	const char *typename =
+		(param->type < ARRAY_SIZE(propnames)) ? propnames[param->type] : NULL;
+	printf("\t\ttype:\t\t%08x (%s)\n", param->type,
+			typename ? typename : "unknown");
 	if (param->type == KGSL_PROP_DEVICE_INFO) {
 		struct kgsl_devinfo *devinfo = param->value;
 		uint32_t gpu_id;
@@ -678,7 +684,7 @@ static void kgsl_ioctl_device_getproperty_post(int fd,
 #ifdef FAKE
 			devinfo->device_id = 1;
 			devinfo->mmu_enabled = 1;
-			devinfo->gmem_gpubaseaddr = 0;
+			devinfo->gmem_gpubaseaddr = 0x10000;
 #endif
 			printf("\t\tEMULATING gpu_id: %d (%08x)!!!\n",
 					devinfo->gpu_id, devinfo->chip_id);
@@ -702,6 +708,10 @@ static void kgsl_ioctl_device_getproperty_post(int fd,
 		shadow->gpuaddr = 0xc0009000;
 		shadow->size = 0x2000;
 		shadow->flags = 0x00000204;
+	} else if (param->type == KGSL_PROP_UCHE_GMEM_VADDR) {
+		uint64_t *value = param->value;
+		*value = 0x10000;
+		// TODO probably should return an error for a4xx and prior..
 #endif
 	}
 	hexdump(param->value, param->sizebytes);
