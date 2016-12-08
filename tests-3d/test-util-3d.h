@@ -104,6 +104,12 @@ typename(GLenum type)
 #ifdef GL_HALF_FLOAT
 	ENUM(GL_HALF_FLOAT);
 #endif
+#ifdef GL_UNSIGNED_INT_10F_11F_11F_REV
+	ENUM(GL_UNSIGNED_INT_10F_11F_11F_REV);
+#endif
+#ifdef GL_UNSIGNED_INT_5_9_9_9_REV
+	ENUM(GL_UNSIGNED_INT_5_9_9_9_REV);
+#endif
 	}
 	ERROR_MSG("invalid type: %04x", type);
 	exit(1);
@@ -290,6 +296,21 @@ formatname(GLenum format)
 #endif
 #ifdef GL_RGBA8
 	ENUM(GL_RGBA8);
+#endif
+#ifdef GL_RGBA8I
+	ENUM(GL_RGBA8I);
+#endif
+#ifdef GL_RGBA16UI
+	ENUM(GL_RGBA16UI);
+#endif
+#ifdef GL_RGBA16I
+	ENUM(GL_RGBA16I);
+#endif
+#ifdef GL_RGBA32I
+	ENUM(GL_RGBA32I);
+#endif
+#ifdef GL_R8_SNORM
+	ENUM(GL_R8_SNORM);
 #endif
 	}
 	ERROR_MSG("invalid format: %04x", format);

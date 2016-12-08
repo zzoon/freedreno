@@ -188,8 +188,8 @@ void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type)
 	GCHK(glActiveTexture(GL_TEXTURE0));
 	GCHK(glBindTexture(GL_TEXTURE_2D, fbotex));
 
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT));
@@ -219,29 +219,68 @@ int main(int argc, char *argv[])
 		GLenum fmt;
 		GLenum type;
 	} fmts[] = {
-			{ GL_BGRA_EXT,   GL_BGRA_EXT,     GL_UNSIGNED_BYTE },
-			{ GL_BGRA_EXT,   GL_BGRA_EXT,     GL_UNSIGNED_SHORT_4_4_4_4_REV_EXT },
-			{ GL_BGRA_EXT,   GL_BGRA_EXT,     GL_UNSIGNED_SHORT_1_5_5_5_REV_EXT },
-			{ GL_RGBA8,      GL_RGBA,         GL_UNSIGNED_BYTE },
-			{ GL_RGB8,       GL_RGB,          GL_UNSIGNED_BYTE },
-			{ GL_R8,         GL_RED,          GL_UNSIGNED_BYTE },
-			{ GL_RGB565,     GL_RGB,          GL_UNSIGNED_SHORT_5_6_5 },
-			{ GL_RGBA4,      GL_RGBA,         GL_UNSIGNED_SHORT_4_4_4_4 },
-			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_SHORT_5_5_5_1 },
-			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_INT_2_10_10_10_REV },
-// blob seems to choke on these:
-//			{ GL_RGBA32UI ,  GL_RGBA_INTEGER, GL_UNSIGNED_INT  },
-//			{ GL_RGB10_A2UI, GL_RGBA_INTEGER, GL_UNSIGNED_INT_2_10_10_10_REV },
-//			{ GL_RGBA8UI,    GL_RGBA_INTEGER, GL_UNSIGNED_BYTE },
-			{ GL_RGB5_A1,    GL_RGBA,         GL_UNSIGNED_BYTE },
-			{ GL_R16F,       GL_RED,          GL_HALF_FLOAT },
-			{ GL_R32F,       GL_RED,          GL_FLOAT },
-			{ GL_RG16F,      GL_RG,           GL_HALF_FLOAT },
-			{ GL_RG32F,      GL_RG,           GL_FLOAT },
-			{ GL_RGB16F,     GL_RGB,          GL_HALF_FLOAT },
-			{ GL_RGB32F,     GL_RGB,          GL_FLOAT },
-			{ GL_RGBA16F,    GL_RGBA,         GL_HALF_FLOAT },
-			{ GL_RGBA32F,    GL_RGBA,         GL_FLOAT },
+			{ GL_R8,            GL_RED,           GL_UNSIGNED_BYTE },
+			{ GL_R8UI,          GL_RED_INTEGER,   GL_UNSIGNED_BYTE },
+			{ GL_R8I,           GL_RED_INTEGER,   GL_BYTE },
+			{ GL_R16UI,         GL_RED_INTEGER,   GL_UNSIGNED_SHORT },
+			{ GL_R16I,          GL_RED_INTEGER,   GL_SHORT },
+			{ GL_R32UI,         GL_RED_INTEGER,   GL_UNSIGNED_INT },
+			{ GL_R32I,          GL_RED_INTEGER,   GL_INT },
+			{ GL_RG8,           GL_RG,            GL_UNSIGNED_BYTE },
+			{ GL_RG8UI,         GL_RG_INTEGER,    GL_UNSIGNED_BYTE },
+			{ GL_RG8I,          GL_RG_INTEGER,    GL_BYTE },
+			{ GL_RG16UI,        GL_RG_INTEGER,    GL_UNSIGNED_SHORT },
+			{ GL_RG16I,         GL_RG_INTEGER,    GL_SHORT },
+			{ GL_RG32UI,        GL_RG_INTEGER,    GL_UNSIGNED_INT },
+			{ GL_RG32I,         GL_RG_INTEGER,    GL_INT },
+			{ GL_RGB8,          GL_RGB,           GL_UNSIGNED_BYTE },
+			{ GL_RGB565,        GL_RGB,           GL_UNSIGNED_BYTE },
+			{ GL_RGB565,        GL_RGB,           GL_UNSIGNED_SHORT_5_6_5 },
+			{ GL_RGBA8,         GL_RGBA,          GL_UNSIGNED_BYTE },
+			{ GL_SRGB8_ALPHA8,  GL_RGBA,          GL_UNSIGNED_BYTE },
+			{ GL_RGB5_A1,       GL_RGBA,          GL_UNSIGNED_BYTE },
+			{ GL_RGB5_A1,       GL_RGBA,          GL_UNSIGNED_SHORT_5_5_5_1 },
+			{ GL_RGB5_A1,       GL_RGBA,          GL_UNSIGNED_INT_2_10_10_10_REV },
+			{ GL_RGBA4,         GL_RGBA,          GL_UNSIGNED_BYTE },
+			{ GL_RGBA4,         GL_RGBA,          GL_UNSIGNED_SHORT_4_4_4_4 },
+			{ GL_RGB10_A2,      GL_RGBA,          GL_UNSIGNED_INT_2_10_10_10_REV },
+			{ GL_RGBA8UI,       GL_RGBA_INTEGER,  GL_UNSIGNED_BYTE },
+			{ GL_RGBA8I,        GL_RGBA_INTEGER,  GL_BYTE },
+			{ GL_RGB10_A2UI,    GL_RGBA_INTEGER,  GL_UNSIGNED_INT_2_10_10_10_REV },
+			{ GL_RGBA16UI,      GL_RGBA_INTEGER,  GL_UNSIGNED_SHORT },
+			{ GL_RGBA16I,       GL_RGBA_INTEGER,  GL_SHORT },
+			{ GL_RGBA32I,       GL_RGBA_INTEGER,  GL_INT },
+			{ GL_RGBA32UI,      GL_RGBA_INTEGER,  GL_UNSIGNED_INT },
+			/* Not required to be color renderable: */
+			{ GL_R8_SNORM,       GL_RED,          GL_BYTE },
+			{ GL_R16F,           GL_RED,          GL_HALF_FLOAT },
+			{ GL_R16F,           GL_RED,          GL_FLOAT },
+			{ GL_R32F,           GL_RED,          GL_FLOAT },
+			{ GL_RG8_SNORM,      GL_RG,           GL_BYTE },
+			{ GL_RG16F,          GL_RG,           GL_HALF_FLOAT },
+			{ GL_RG16F,          GL_RG,           GL_FLOAT },
+			{ GL_RG32F,          GL_RG,           GL_FLOAT },
+			{ GL_SRGB8,          GL_RGB,          GL_UNSIGNED_BYTE },
+			{ GL_RGB8_SNORM,     GL_RGB,          GL_BYTE },
+			{ GL_R11F_G11F_B10F, GL_RGB,          GL_UNSIGNED_INT_10F_11F_11F_REV },
+			{ GL_R11F_G11F_B10F, GL_RGB,          GL_HALF_FLOAT },
+			{ GL_R11F_G11F_B10F, GL_RGB,          GL_FLOAT },
+			{ GL_RGB9_E5,        GL_RGB,          GL_UNSIGNED_INT_5_9_9_9_REV },
+			{ GL_RGB9_E5,        GL_RGB,          GL_HALF_FLOAT },
+			{ GL_RGB9_E5,        GL_RGB,          GL_FLOAT },
+			{ GL_RGB16F,         GL_RGB,          GL_HALF_FLOAT },
+			{ GL_RGB16F,         GL_RGB,          GL_FLOAT },
+			{ GL_RGB32F,         GL_RGB,          GL_FLOAT },
+			{ GL_RGB8UI,         GL_RGB_INTEGER,  GL_UNSIGNED_BYTE },
+			{ GL_RGB8I,          GL_RGB_INTEGER,  GL_BYTE },
+			{ GL_RGB16UI,        GL_RGB_INTEGER,  GL_UNSIGNED_SHORT },
+			{ GL_RGB16I,         GL_RGB_INTEGER,  GL_SHORT },
+			{ GL_RGB32UI,        GL_RGB_INTEGER,  GL_UNSIGNED_INT },
+			{ GL_RGB32I,         GL_RGB_INTEGER,  GL_INT },
+			{ GL_RGBA8_SNORM,    GL_RGBA,         GL_BYTE },
+			{ GL_RGBA16F,        GL_RGBA,         GL_HALF_FLOAT },
+			{ GL_RGBA16F,        GL_RGBA,         GL_FLOAT },
+			{ GL_RGBA32F,        GL_RGBA,         GL_FLOAT },
 	};
 	int i;
 
