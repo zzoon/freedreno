@@ -387,6 +387,13 @@ uint32_t reg_val(uint32_t regbase)
 	return type0_reg_vals[regbase];
 }
 
+static void reg_set(uint32_t regbase, uint32_t val)
+{
+	type0_reg_vals[regbase] = val;
+	type0_reg_written[regbase/8] |= (1 << (regbase % 8));
+	type0_reg_rewritten[regbase/8] |= (1 << (regbase % 8));
+}
+
 static struct {
 	uint32_t config;
 	uint32_t address;
@@ -993,9 +1000,7 @@ static void dump_registers(uint32_t regbase,
 		if (needs_wfi && !is_banked_reg(regbase))
 			printl(2, "NEEDS WFI: %s (%x)\n", regname(regbase, 1), regbase);
 
-		type0_reg_vals[regbase] = *dwords;
-		type0_reg_written[regbase/8] |= (1 << (regbase % 8));
-		type0_reg_rewritten[regbase/8] |= (1 << (regbase % 8));
+		reg_set(regbase, *dwords);
 		dump_register(regbase, *dwords, level);
 		regbase++;
 		dwords++;
@@ -1048,7 +1053,7 @@ static void do_query(const char *primtype, uint32_t num_indices)
 			printf("%4d: %s(%u,%u-%u,%u):%u:", draw_count, primtype,
 					bin_x1, bin_y1, bin_x2, bin_y2, num_indices);
 			if (gpu_id >= 500)
-				printf("%s:", (mode & CP_SET_RENDER_MODE_3_GMEM_ENABLE) ? "GMEM" : "BYPASS");
+				printf("m%d:%s:", render_mode, (mode & CP_SET_RENDER_MODE_3_GMEM_ENABLE) ? "GMEM" : "BYPASS");
 			printf("\t%08x", lastval);
 			if (lastval != lastvals[regbase]) {
 				printf("!");
@@ -1100,6 +1105,17 @@ static void cp_im_loadi(uint32_t *dwords, uint32_t sizedwords, int level)
 	/* dump raw shader: */
 	if (ext)
 		dump_shader(ext, dwords + 2, (sizedwords - 2) * 4);
+}
+
+static void cp_wide_reg_write(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	uint32_t reg = dwords[0] & 0xffff;
+	int i;
+	for (i = 1; i < sizedwords; i++) {
+		dump_register(reg, dwords[i], level+1);
+		reg_set(reg, dwords[i]);
+		reg++;
+	}
 }
 
 static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -1440,8 +1456,8 @@ static void dump_register_summary(int level)
 	for (i = 0; i < regcnt(); i++) {
 		uint32_t regbase = i;
 		uint32_t lastval = reg_val(regbase);
-		/* skip registers that have zero: */
-		if (!lastval && !allregs)
+		/* skip registers that haven't been updated since last draw/blit: */
+		if (!(allregs || reg_rewritten(regbase)))
 			continue;
 		if (!reg_written(regbase))
 			continue;
@@ -1720,9 +1736,7 @@ static void cp_rmw(uint32_t *dwords, uint32_t sizedwords, int level)
 	printl(3, "%srmw (%s & 0x%08x) | 0x%08x)\n", levels[level], regname(val, 1), and, or);
 	if (needs_wfi)
 		printl(2, "NEEDS WFI: rmw (%s & 0x%08x) | 0x%08x)\n", regname(val, 1), and, or);
-	type0_reg_vals[val] = (type0_reg_vals[val] & and) | or;
-	type0_reg_written[val/8] |= (1 << (val % 8));
-	type0_reg_rewritten[val/8] |= (1 << (val % 8));
+	reg_set(val, (reg_val(val) & and) | or);
 }
 
 static void cp_reg_to_mem(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -1755,6 +1769,9 @@ static void cp_set_draw_state(uint32_t *dwords, uint32_t sizedwords, int level)
 		}
 
 		ptr = hostptr(addr);
+
+		printl(3, "%scount: %d\n", levels[level], count);
+		printl(3, "%saddr: %016llx\n", levels[level], addr);
 
 		if (ptr) {
 			if (!quiet(2))
@@ -1807,23 +1824,20 @@ static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
 	if (sizedwords == 1)
 		return;
 
-	assert(sizedwords == 8);
 	addr = dwords[1];
 	addr |= ((uint64_t)dwords[2]) << 32;
+
+	mode = dwords[3];
 
 	printl(3, "%saddr: 0x%016lx\n", levels[level], addr);
 	printl(3, "%slen:  0x%x\n", levels[level], len);
 
-	ptr = hostptr(addr);
+	dump_gpuaddr(addr, level+1);
 
-	// XXX
-	len = 32;
+	if (sizedwords == 5)
+		return;
 
-	if (ptr) {
-		if (!quiet(2)) {
-			dump_hex(ptr, len, level+1);
-		}
-	}
+	assert(sizedwords == 8);
 
 	len = dwords[5];
 	addr = dwords[6];
@@ -1842,8 +1856,6 @@ static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
 			dump_hex(ptr, len, level+1);
 		}
 	}
-
-	mode = dwords[3];
 }
 
 static void cp_blit(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -1851,7 +1863,7 @@ static void cp_blit(uint32_t *dwords, uint32_t sizedwords, int level)
 	bool saved_summary = summary;
 	summary = false;
 
-	do_query("2DBLIT", 0);
+	do_query(rnn_enumname(rnn, "cp_blit_cmd", dwords[0]), 0);
 	dump_register_summary(level);
 
 	draw_count++;
@@ -1901,6 +1913,7 @@ static const struct {
 		CP(INTERRUPT, NULL),
 		CP(IM_STORE, NULL),
 		CP(SET_PROTECTED_MODE, NULL),
+		CP(WIDE_REG_WRITE, cp_wide_reg_write),
 
 		/* for a20x */
 		//CP(SET_BIN_BASE_OFFSET, NULL),
