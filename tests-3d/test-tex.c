@@ -34,6 +34,29 @@
 
 #include "cubetex.h"
 
+#ifndef GL_EXT_texture_border_clamp
+#define GL_EXT_texture_border_clamp 1
+#define GL_TEXTURE_BORDER_COLOR_EXT       0x1004
+#define GL_CLAMP_TO_BORDER_EXT            0x812D
+typedef void (GL_APIENTRYP PFNGLTEXPARAMETERIIVEXTPROC) (GLenum target, GLenum pname, const GLint *params);
+typedef void (GL_APIENTRYP PFNGLTEXPARAMETERIUIVEXTPROC) (GLenum target, GLenum pname, const GLuint *params);
+typedef void (GL_APIENTRYP PFNGLGETTEXPARAMETERIIVEXTPROC) (GLenum target, GLenum pname, GLint *params);
+typedef void (GL_APIENTRYP PFNGLGETTEXPARAMETERIUIVEXTPROC) (GLenum target, GLenum pname, GLuint *params);
+typedef void (GL_APIENTRYP PFNGLSAMPLERPARAMETERIIVEXTPROC) (GLuint sampler, GLenum pname, const GLint *param);
+typedef void (GL_APIENTRYP PFNGLSAMPLERPARAMETERIUIVEXTPROC) (GLuint sampler, GLenum pname, const GLuint *param);
+typedef void (GL_APIENTRYP PFNGLGETSAMPLERPARAMETERIIVEXTPROC) (GLuint sampler, GLenum pname, GLint *params);
+typedef void (GL_APIENTRYP PFNGLGETSAMPLERPARAMETERIUIVEXTPROC) (GLuint sampler, GLenum pname, GLuint *params);
+#ifdef GL_GLEXT_PROTOTYPES
+GL_APICALL void GL_APIENTRY glTexParameterIivEXT (GLenum target, GLenum pname, const GLint *params);
+GL_APICALL void GL_APIENTRY glTexParameterIuivEXT (GLenum target, GLenum pname, const GLuint *params);
+GL_APICALL void GL_APIENTRY glGetTexParameterIivEXT (GLenum target, GLenum pname, GLint *params);
+GL_APICALL void GL_APIENTRY glGetTexParameterIuivEXT (GLenum target, GLenum pname, GLuint *params);
+GL_APICALL void GL_APIENTRY glSamplerParameterIivEXT (GLuint sampler, GLenum pname, const GLint *param);
+GL_APICALL void GL_APIENTRY glSamplerParameterIuivEXT (GLuint sampler, GLenum pname, const GLuint *param);
+GL_APICALL void GL_APIENTRY glGetSamplerParameterIivEXT (GLuint sampler, GLenum pname, GLint *params);
+GL_APICALL void GL_APIENTRY glGetSamplerParameterIuivEXT (GLuint sampler, GLenum pname, GLuint *params);
+#endif
+#endif /* GL_EXT_texture_border_clamp */
 
 static EGLint const config_attribute_list[] = {
 	EGL_RED_SIZE, 8,
@@ -171,7 +194,7 @@ const GLenum tex_enums[] = {
 /* Run through multiple variants to detect clear color, quad color (frag
  * shader param), and vertices
  */
-void test_tex(int nvtex, int nftex)
+void test_tex(int nvtex, int nftex, int bcolor)
 {
 	GLint width, height;
 	EGLint pbuffer_attribute_list[] = {
@@ -186,10 +209,16 @@ void test_tex(int nvtex, int nftex)
 			 0.45, -0.75, 0.0,
 			-0.45,  0.75, 0.0,
 			 0.45,  0.75, 0.0 };
+	GLfloat bcolors[][4] = {
+			{ 0.25, 0.50, 0.75, 1.0 },
+			{ 1.00, 0.00, 0.00, 1.0 },
+			{ 0.00, 1.00, 0.00, 1.0 },
+			{ 0.00, 0.00, 1.00, 1.0 },
+	};
 	EGLSurface surface;
 	int n;
 
-	RD_START("tex", "%d vtex, %d ftex", nvtex, nftex);
+	RD_START("tex", "%d vtex, %d ftex, bcolor=%d", nvtex, nftex, bcolor);
 
 	ECHK(surface = eglCreatePbufferSurface(display, config, pbuffer_attribute_list));
 
@@ -229,9 +258,17 @@ void test_tex(int nvtex, int nftex)
 
 		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R_OES, GL_REPEAT));
+
+		if (bcolor) {
+			GCHK(glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR_EXT, bcolors[n]));
+			GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER_EXT));
+			GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER_EXT));
+			GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R_OES, GL_CLAMP_TO_BORDER_EXT));
+		} else {
+			GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+			GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+			GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R_OES, GL_REPEAT));
+		}
 
 		sprintf(name, "uTex%d", n+1);
 		GCHK(texture_handle = glGetUniformLocation(program, name));
@@ -262,15 +299,21 @@ int main(int argc, char *argv[])
 	/* create an EGL rendering context */
 	ECHK(context = eglCreateContext(display, config, EGL_NO_CONTEXT, context_attribute_list));
 
-	TEST(test_tex(0, 0));
-	TEST(test_tex(0, 1));
-	TEST(test_tex(1, 0));
-	TEST(test_tex(1, 1));
-	TEST(test_tex(1, 2));
-	TEST(test_tex(2, 1));
-	TEST(test_tex(2, 2));
-	TEST(test_tex(0, 3));
-	TEST(test_tex(3, 2));
+	TEST(test_tex(0, 0, 0));
+	TEST(test_tex(0, 1, 0));
+	TEST(test_tex(1, 0, 0));
+	TEST(test_tex(1, 1, 0));
+	TEST(test_tex(1, 2, 0));
+	TEST(test_tex(2, 1, 0));
+	TEST(test_tex(2, 2, 0));
+	TEST(test_tex(0, 3, 0));
+	TEST(test_tex(3, 2, 0));
+
+	TEST(test_tex(3, 0, 1));
+	TEST(test_tex(0, 3, 1));
+	TEST(test_tex(3, 3, 1));
+	TEST(test_tex(1, 2, 1));
+	TEST(test_tex(2, 1, 1));
 
 	ECHK(eglTerminate(display));
 	TEST_END();
