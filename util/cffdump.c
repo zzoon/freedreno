@@ -512,6 +512,22 @@ static void reg_dump_scratch(const char *name, uint32_t dword, int level)
 	printf("\n");
 }
 
+static inline uint32_t REG_A5XX_CP_SCRATCH_REG(uint32_t i0) { return 0x00000b78 + 0x1*i0; }
+
+static void reg_dump_scratch5(const char *name, uint32_t dword, int level)
+{
+	unsigned regbase;
+
+	if (quiet(3))
+		return;
+
+	printf("%s:%u,%u,%u,%u\n", levels[level],
+			reg_val(REG_A5XX_CP_SCRATCH_REG(4)),
+			reg_val(REG_A5XX_CP_SCRATCH_REG(5)),
+			reg_val(REG_A5XX_CP_SCRATCH_REG(6)),
+			reg_val(REG_A5XX_CP_SCRATCH_REG(7)));
+}
+
 static void dump_gpuaddr(uint64_t gpuaddr, int level)
 {
 	void *buf;
@@ -811,18 +827,24 @@ static struct {
 		REG(TPL1_TP_FS_BORDER_COLOR_BASE_ADDR, reg_dump_gpuaddr),
 		{NULL},
 }, reg_a5xx[] = {
+		REG(CP_SCRATCH[0x4].REG, reg_dump_scratch5),
+		REG(CP_SCRATCH[0x5].REG, reg_dump_scratch5),
+		REG(CP_SCRATCH[0x6].REG, reg_dump_scratch5),
+		REG(CP_SCRATCH[0x7].REG, reg_dump_scratch5),
 		REG(SP_VS_OBJ_START_LO, reg_disasm_gpuaddr_lo),
 		REG(SP_VS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
 		REG(SP_FS_OBJ_START_LO, reg_disasm_gpuaddr_lo),
 		REG(SP_FS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
-		REG(TPL1_VS_TEX_CONST_LO, reg_dump_gpuaddr_lo),
-		REG(TPL1_VS_TEX_CONST_HI, reg_dump_gpuaddr_hi),
-		REG(TPL1_VS_TEX_SAMP_LO,  reg_dump_gpuaddr_lo),
-		REG(TPL1_VS_TEX_SAMP_HI,  reg_dump_gpuaddr_hi),
-		REG(TPL1_FS_TEX_CONST_LO, reg_dump_gpuaddr_lo),
-		REG(TPL1_FS_TEX_CONST_HI, reg_dump_gpuaddr_hi),
-		REG(TPL1_FS_TEX_SAMP_LO,  reg_dump_gpuaddr_lo),
-		REG(TPL1_FS_TEX_SAMP_HI,  reg_dump_gpuaddr_hi),
+//		REG(TPL1_VS_TEX_CONST_LO, reg_dump_gpuaddr_lo),
+//		REG(TPL1_VS_TEX_CONST_HI, reg_dump_gpuaddr_hi),
+//		REG(TPL1_VS_TEX_SAMP_LO,  reg_dump_gpuaddr_lo),
+//		REG(TPL1_VS_TEX_SAMP_HI,  reg_dump_gpuaddr_hi),
+//		REG(TPL1_FS_TEX_CONST_LO, reg_dump_gpuaddr_lo),
+//		REG(TPL1_FS_TEX_CONST_HI, reg_dump_gpuaddr_hi),
+//		REG(TPL1_FS_TEX_SAMP_LO,  reg_dump_gpuaddr_lo),
+//		REG(TPL1_FS_TEX_SAMP_HI,  reg_dump_gpuaddr_hi),
+		REG(TPL1_TP_BORDER_COLOR_BASE_ADDR_LO,  reg_dump_gpuaddr_lo),
+		REG(TPL1_TP_BORDER_COLOR_BASE_ADDR_HI,  reg_dump_gpuaddr_hi),
 		{NULL},
 }, *type0_reg;
 
