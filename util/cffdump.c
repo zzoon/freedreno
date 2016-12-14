@@ -268,23 +268,41 @@ static unsigned hostlen(uint64_t gpuaddr)
 
 static void dump_hex(uint32_t *dwords, uint32_t sizedwords, int level)
 {
-	int i;
-	for (i = 0; i < sizedwords; i++) {
-		if ((i % 8) == 0) {
-			if (is_64b()) {
-				printf("%016lx:%s", gpuaddr(dwords), levels[level]);
-			} else {
-				printf("%08x:%s", (uint32_t)gpuaddr(dwords), levels[level]);
+	int i, j;
+	int lastzero = 0;
+	for (i = 0; i < sizedwords; i += 8) {
+		int zero = 1;
+		int skip;
+
+		for (j = 0; (j < 8) && (i+j < sizedwords); j++) {
+			if (dwords[i+j]) {
+				zero = 0;
+				break;
 			}
-		} else {
-			printf(" ");
 		}
-		printf("%08x", *(dwords++));
-		if ((i % 8) == 7)
-			printf("\n");
-	}
-	if (i % 8)
+
+		if (zero && !lastzero)
+			printf("*\n");
+
+		lastzero = zero;
+
+		if (zero)
+			continue;
+
+		if (is_64b()) {
+			printf("%016lx:%s", gpuaddr(&dwords[i]), levels[level]);
+		} else {
+			printf("%08x:%s", (uint32_t)gpuaddr(&dwords[i]), levels[level]);
+		}
+
+		printf("%04x:", i * 4);
+
+		for (j = 0; (j < 8) && (i+j < sizedwords); j++) {
+			printf(" %08x", dwords[i+j]);
+		}
+
 		printf("\n");
+	}
 }
 
 static void dump_float(float *dwords, uint32_t sizedwords, int level)
