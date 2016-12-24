@@ -52,31 +52,52 @@ static EGLDisplay display;
 static EGLConfig config;
 static EGLint num_config;
 static EGLContext context;
-static GLuint program, vertex_shader;
+static GLuint program;
 const char *vertex_shader_source =
 		"#version 300 es              \n"
 		"in vec4 in_position;         \n"
 		"\n"
 		"out vec4 pos;                \n"
 		"out vec2 pos2;               \n"
+		"out vec3 pos3;               \n"
+		"out vec4 pos4;               \n"
+		"out vec2 pos5;               \n"
+		"out vec3 pos6;               \n"
+		"out vec4 pos7;               \n"
 		//              "out vec4 posen[5];          \n"
 		"                             \n"
 		"void main()                  \n"
 		"{                            \n"
 		"    pos = in_position;       \n"
 		"    pos2 = in_position.xy;   \n"
+		"    pos3 = in_position.xyz;  \n"
+		"    pos4 = in_position.xyzw; \n"
+		"    pos5 = in_position.yx;   \n"
+		"    pos6 = in_position.yxz;  \n"
+		"    pos7 = in_position.yxzw; \n"
 		//              "    for (int i = 0; i < 5; i++)          \n"
 		//              "        posen[i] = in_position + vec4(i); \n"
 		"}                            \n";
 
 const char *fragment_shader_source =
-		"#version 300 es \n"
-		"precision mediump float; \n"
+		"#version 300 es              \n"
+		"precision mediump float;     \n"
+		"in vec4 pos;                 \n"
+		"in vec2 pos2;                \n"
+		"in vec3 pos3;                \n"
+		"in vec4 pos4;                \n"
 		"out vec4 gl_FragColor;       \n"
-		"void main() { gl_FragColor = vec4(1, 0, 0, 0); } \n";
+		"void main() {                \n"
+		"gl_FragColor = vec4(1, 0, 0, 0);\n"
+		"gl_FragColor.x += pos.x;     \n"
+		"gl_FragColor.y += pos2.x;    \n"
+		"gl_FragColor.z += pos3.x;    \n"
+		"gl_FragColor.w += pos4.x;    \n"
+		"} \n";
 
 
-void test_transform_feedback(int separate)
+
+static void test_transform_feedback(int n, int separate)
 {
 	GLint width, height, ret, i;
 	GLuint texturename = 0, texture_handle, tf;
@@ -91,6 +112,11 @@ void test_transform_feedback(int separate)
 	const char *varyings[] = {
 			"pos",
 			"pos2",
+			"pos3",
+			"pos4",
+			"pos5",
+			"pos6",
+			"pos7",
 			//"posen[0]",
 			//"posen[1]",
 			//"posen[2]",
@@ -101,7 +127,7 @@ void test_transform_feedback(int separate)
 
 	EGLSurface surface;
 
-	RD_START("transform-feedback", "separate=%d", separate);
+	RD_START("transform-feedback", "n=%d, separate=%d", n, separate);
 
 	display = get_display();
 
@@ -128,64 +154,42 @@ void test_transform_feedback(int separate)
 	printf("GL Version %s\n", glGetString(GL_VERSION));
 	printf("GL extensions: %s\n", glGetString(GL_EXTENSIONS));
 
-	/*
-        DEBUG_MSG("vertex shader:\n%s", vertex_shader_source);
-
-        RD_WRITE_SECTION(RD_VERT_SHADER,
-                        vertex_shader_source, strlen(vertex_shader_source));
-
-        GCHK(vertex_shader = glCreateShader(GL_VERTEX_SHADER));
-
-        GCHK(glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL));
-        GCHK(glCompileShader(vertex_shader));
-
-        GCHK(glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &ret));
-        if (!ret) {
-                char *log;
-
-                ERROR_MSG("vertex shader compilation failed!:");
-                glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &ret);
-
-                if (ret > 1) {
-                        log = malloc(ret);
-                        glGetShaderInfoLog(vertex_shader, ret, NULL, log);
-                        printf("%s", log);
-                }
-                exit(-1);
-        }
-
-        DEBUG_MSG("Vertex shader compilation succeeded!");
-
-        GCHK(program = glCreateProgram());
-
-        GCHK(glAttachShader(program, vertex_shader));
-	 */
 	program = get_program(vertex_shader_source, fragment_shader_source);
 
-	GCHK(glEnable(GL_RASTERIZER_DISCARD));
+	if (n > 0)
+		GCHK(glEnable(GL_RASTERIZER_DISCARD));
 
 	GCHK(glBindAttribLocation(program, 0, "in_position"));
 
-	GCHK(glTransformFeedbackVaryings(program, ARRAY_SIZE(varyings), varyings,
-			separate ? GL_SEPARATE_ATTRIBS : GL_INTERLEAVED_ATTRIBS));
+	if (n > 0) {
+		GCHK(glTransformFeedbackVaryings(program, n, varyings,
+				separate ? GL_SEPARATE_ATTRIBS : GL_INTERLEAVED_ATTRIBS));
+	}
+
 	link_program(program);
 
 	GCHK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vVertices));
 	GCHK(glEnableVertexAttribArray(0));
 
-	GCHK(glGenBuffers(ARRAY_SIZE(varyings), tf_bufs));
-	for (i = 0; i < (separate ? ARRAY_SIZE(varyings) : 1); i++) {
-		GCHK(glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, tf_bufs[i]));
-		GCHK(glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER, 1024, NULL, GL_STREAM_DRAW));
-		GCHK(glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, i, tf_bufs[i], 0, 1024));
+	if (n > 0) {
+		GCHK(glGenBuffers(n, tf_bufs));
+		for (i = 0; i < (separate ? n : 1); i++) {
+			GCHK(glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, tf_bufs[i]));
+			GCHK(glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER, 1024, NULL, GL_STREAM_DRAW));
+			GCHK(glBindBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER, i, tf_bufs[i], 32 * i, 1024));
+		}
 	}
 
 	//GCHK(glGenTransformFeedbacks(1, &tf));
 	//GCHK(glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, tf));
 
-	GCHK(glBeginTransformFeedback(GL_POINTS));
+	if (n > 0)
+		GCHK(glBeginTransformFeedback(GL_POINTS));
+
 	GCHK(glDrawArrays(GL_POINTS, 0, 4));
-	GCHK(glEndTransformFeedback());
+
+	if (n > 0)
+		GCHK(glEndTransformFeedback());
 
 	//ECHK(eglSwapBuffers(display, surface));
 	GCHK(glFlush());
@@ -201,9 +205,17 @@ void test_transform_feedback(int separate)
 
 int main(int argc, char *argv[])
 {
+	int i;
+
 	TEST_START();
-	TEST(test_transform_feedback(0));
-	TEST(test_transform_feedback(1));
+	TEST(test_transform_feedback(0, 0));
+	for (i = 1; i <= 4; i++) {
+		TEST(test_transform_feedback(i, 0));
+		TEST(test_transform_feedback(i, 1));
+	}
+	for (; i <= 7; i++) {
+		TEST(test_transform_feedback(i, 0));
+	}
 	TEST_END();
 
 	return 0;
