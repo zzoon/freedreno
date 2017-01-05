@@ -269,17 +269,18 @@ static unsigned hostlen(uint64_t gpuaddr)
 static void dump_hex(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	int i, j;
-	int lastzero = 0;
+	int lastzero = 1;
 	for (i = 0; i < sizedwords; i += 8) {
 		int zero = 1;
 		int skip;
 
-		for (j = 0; (j < 8) && (i+j < sizedwords); j++) {
-			if (dwords[i+j]) {
+		/* always show first row: */
+		if (i == 0)
+			zero = 0;
+
+		for (j = 0; (j < 8) && (i+j < sizedwords) && zero; j++)
+			if (dwords[i+j])
 				zero = 0;
-				break;
-			}
-		}
 
 		if (zero && !lastzero)
 			printf("*\n");
