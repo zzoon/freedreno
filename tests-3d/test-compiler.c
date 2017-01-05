@@ -21,6 +21,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include <GLES3/gl31.h>
 #include "test-util-3d.h"
 
 int openfile(const char *fmt, int i)
@@ -35,13 +36,24 @@ int openfile(const char *fmt, int i)
 
 static const char *attrnames[] = {
 		"aFoo", "aPosition", "aPosition0", "aPosition1", "aPosition2",
-		"aTexCoord", "aTexCoord0", "in_position",
+		"aTexCoord", "aTexCoord0", "in_position", "a_coords", "a_position",
+		"a_in0", "a_in1",
+};
+
+static const char *ubonames[] = {
+		"ubo0", "ubo1", "ubo2",
 };
 
 static EGLDisplay display;
 static EGLSurface surface;
 
-void compile_shader(GLint program, int fd, GLenum type)
+struct ubodata {
+	float a[512][4];
+	float b[512][4];
+	float c[512][4];
+} ubodata;
+
+static void compile_shader(GLint program, int fd, GLenum type)
 {
 	GLuint shader;
 	static char text[64 * 1024];
@@ -72,6 +84,60 @@ void compile_shader(GLint program, int fd, GLenum type)
 	}
 
 	GCHK(glAttachShader(program, shader));
+}
+
+static void *getpix(unsigned npix)
+{
+	uint32_t *pix = malloc(npix * 4);
+	for (unsigned i = 0; i < npix; i++)
+		pix[i] = i;
+	return pix;
+}
+
+static void setup_textures(GLint program)
+{
+	int handle, tex, unit = 0;
+
+	handle = glGetUniformLocation(program, "uTexture2D");
+	if (handle >= 0) {
+		DEBUG_MSG("setup uTexture2D");
+
+		glGenTextures(1, &tex);
+
+		glActiveTexture(GL_TEXTURE0 + unit);
+		glBindTexture(GL_TEXTURE_2D, tex);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, getpix(32 * 32));
+
+		glUniform1i(handle, unit);
+
+		unit++;
+	}
+
+	handle = glGetUniformLocation(program, "uTexture3D");
+	if (handle >= 0) {
+		DEBUG_MSG("setup uTexture3D");
+
+		glGenTextures(1, &tex);
+
+		glActiveTexture(GL_TEXTURE0 + unit);
+		glBindTexture(GL_TEXTURE_3D, tex);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 32, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, getpix(32 * 32 * 32));
+
+		glUniform1i(handle, unit);
+
+		unit++;
+	}
+
+	// TODO other texture types..
 }
 
 int test_compiler(int n)
@@ -130,6 +196,27 @@ int test_compiler(int n)
 		GCHK(glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, 0, v[i]));
 		GCHK(glEnableVertexAttribArray(i));
 	}
+
+	for (i = 0; i < ARRAY_SIZE(ubonames); i++) {
+		GLuint idx = glGetUniformBlockIndex(program, ubonames[i]);
+		GLuint ubo;
+
+		if (idx == GL_INVALID_INDEX)
+			continue;
+
+		GCHK(glGenBuffers(1, &ubo));
+		GCHK(glBindBuffer(GL_UNIFORM_BUFFER, ubo));
+		GCHK(glBufferData(GL_UNIFORM_BUFFER, sizeof(ubodata), &ubodata, GL_DYNAMIC_DRAW));
+		GCHK(glBindBuffer(GL_UNIFORM_BUFFER, 0));
+
+		GCHK(glBindBufferBase(GL_UNIFORM_BUFFER, i, ubo));
+		GCHK(glUniformBlockBinding(program, idx, i));
+	}
+
+	setup_textures(program);
+
+	/* clear any errors, just in case: */
+	while (glGetError() != GL_NO_ERROR) {}
 
 	if (tes_fd >= 0)
 		GCHK(glDrawArrays(0x000E/*GL_PATCHES*/, 0, NVERT));
