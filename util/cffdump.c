@@ -1893,6 +1893,25 @@ static void cp_blit(uint32_t *dwords, uint32_t sizedwords, int level)
 	summary = saved_summary;
 }
 
+static void cp_context_reg_bunch(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	int i;
+
+	/* NOTE: seems to write same reg multiple times.. not sure if different parts of
+	 * these are triggered by the FLUSH_SO_n events?? (if that is what they actually
+	 * are?)
+	 */
+	bool saved_summary = summary;
+	summary = false;
+
+	for (i = 0; i < sizedwords; i += 2) {
+		dump_register(dwords[i+0], dwords[i+1], level+1);
+		reg_set(dwords[i+0], dwords[i+1]);
+	}
+
+	summary = saved_summary;
+}
+
 #define CP(x, fxn)   [CP_ ## x] = { fxn }
 static const struct {
 	void (*fxn)(uint32_t *dwords, uint32_t sizedwords, int level);
@@ -1957,6 +1976,7 @@ static const struct {
 		/* for a5xx */
 		CP(SET_RENDER_MODE, cp_set_render_mode),
 		CP(BLIT, cp_blit),
+		CP(CONTEXT_REG_BUNCH, cp_context_reg_bunch),
 };
 
 
