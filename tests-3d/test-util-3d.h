@@ -35,6 +35,8 @@
 
 #include <ctype.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
 
 /*****************************************************************************/
 
@@ -528,10 +530,42 @@ static void readbuf(GLenum readbuf)
 #endif
 
 static GLuint
+get_shader(GLenum stage, const char *stage_name, const char *source)
+{
+	GLuint shader;
+	GLint ret;
+
+	DEBUG_MSG("%s shader:\n%s", stage_name, source);
+
+	GCHK(shader = glCreateShader(stage));
+
+	GCHK(glShaderSource(shader, 1, &source, NULL));
+	GCHK(glCompileShader(shader));
+
+	GCHK(glGetShaderiv(shader, GL_COMPILE_STATUS, &ret));
+	if (!ret) {
+		char *log;
+
+		ERROR_MSG("%s shader compilation failed!:", stage_name);
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &ret);
+
+		if (ret > 1) {
+			log = malloc(ret);
+			glGetShaderInfoLog(shader, ret, NULL, log);
+			printf("%s", log);
+		}
+		exit(-1);
+	}
+
+	DEBUG_MSG("%s shader compilation succeeded!", stage_name);
+
+	return shader;
+}
+
+static GLuint
 get_program(const char *vertex_shader_source, const char *fragment_shader_source)
 {
 	GLuint vertex_shader, fragment_shader, program;
-	GLint ret;
 
 	DEBUG_MSG("vertex shader:\n%s", vertex_shader_source);
 	DEBUG_MSG("fragment shader:\n%s", fragment_shader_source);
@@ -541,49 +575,8 @@ get_program(const char *vertex_shader_source, const char *fragment_shader_source
 	RD_WRITE_SECTION(RD_FRAG_SHADER,
 			fragment_shader_source, strlen(fragment_shader_source));
 
-	GCHK(vertex_shader = glCreateShader(GL_VERTEX_SHADER));
-
-	GCHK(glShaderSource(vertex_shader, 1, &vertex_shader_source, NULL));
-	GCHK(glCompileShader(vertex_shader));
-
-	GCHK(glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &ret));
-	if (!ret) {
-		char *log;
-
-		ERROR_MSG("vertex shader compilation failed!:");
-		glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &ret);
-
-		if (ret > 1) {
-			log = malloc(ret);
-			glGetShaderInfoLog(vertex_shader, ret, NULL, log);
-			printf("%s", log);
-		}
-		exit(-1);
-	}
-
-	DEBUG_MSG("Vertex shader compilation succeeded!");
-
-	GCHK(fragment_shader = glCreateShader(GL_FRAGMENT_SHADER));
-
-	GCHK(glShaderSource(fragment_shader, 1, &fragment_shader_source, NULL));
-	GCHK(glCompileShader(fragment_shader));
-
-	GCHK(glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &ret));
-	if (!ret) {
-		char *log;
-
-		ERROR_MSG("fragment shader compilation failed!:");
-		glGetShaderiv(fragment_shader, GL_INFO_LOG_LENGTH, &ret);
-
-		if (ret > 1) {
-			log = malloc(ret);
-			glGetShaderInfoLog(fragment_shader, ret, NULL, log);
-			printf("%s", log);
-		}
-		exit(-1);
-	}
-
-	DEBUG_MSG("Fragment shader compilation succeeded!");
+	vertex_shader = get_shader(GL_VERTEX_SHADER, "vertex", vertex_shader_source);
+	fragment_shader = get_shader(GL_FRAGMENT_SHADER, "fragment", fragment_shader_source);
 
 	GCHK(program = glCreateProgram());
 
@@ -592,6 +585,26 @@ get_program(const char *vertex_shader_source, const char *fragment_shader_source
 
 	return program;
 }
+
+#ifdef GL_COMPUTE_SHADER
+static GLuint
+get_compute_program(const char *shader_source)
+{
+	GLuint shader, program;
+
+	DEBUG_MSG("compute shader:\n%s", shader_source);
+
+	RD_WRITE_SECTION(RD_FRAG_SHADER,
+			shader_source, strlen(shader_source));
+
+	shader = get_shader(GL_COMPUTE_SHADER, "compute", shader_source);
+
+	GCHK(program = glCreateProgram());
+	GCHK(glAttachShader(program, shader));
+
+	return program;
+}
+#endif
 
 /* ***** GL_OES_get_program_binary extension: ****************************** */
 /* Accepted by the <pname> parameter of GetProgramiv:
