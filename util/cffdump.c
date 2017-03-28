@@ -1853,7 +1853,14 @@ static void cp_set_draw_state(uint32_t *dwords, uint32_t sizedwords, int level)
 /* execute compute shader */
 static void cp_exec_cs(uint32_t *dwords, uint32_t sizedwords, int level)
 {
+	bool saved_summary = summary;
+	summary = false;
+
+	do_query("compute", 0);
 	dump_register_summary(level);
+
+	draw_count++;
+	summary = saved_summary;
 }
 
 static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
