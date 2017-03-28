@@ -10,6 +10,10 @@ uniform mat4 Modelview;
 uniform sampler2D uTexture;
 uniform sampler2D uTex2D0;
 
+layout(binding = 1) buffer buffer_In {
+    vec4 In[];
+};
+
 void main()
 {
     vec3 p0 = gl_TessCoord.x * tcPosition[0];
@@ -17,6 +21,6 @@ void main()
     vec3 p2 = gl_TessCoord.z * tcPosition[2];
     tePatchDistance = gl_TessCoord + texture(uTexture, gl_TessCoord.xy).xyz + texture(uTex2D0, gl_TessCoord.xy).xyz;
     tePosition = normalize(p0 + p1 + p2);
-    gl_Position = Projection * Modelview * vec4(tePosition, 1);
+    gl_Position = In[0] + Projection * Modelview * vec4(tePosition, 1);
 }
 

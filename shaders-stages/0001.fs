@@ -15,6 +15,10 @@ uniform vec3 LightPosition;
 uniform vec3 DiffuseMaterial;
 uniform vec3 AmbientMaterial;
 
+layout(binding = 1) buffer buffer_In {
+    vec4 In[];
+};
+
 float amplify(float d, float scale, float offset)
 {
     d = scale * d + offset;
@@ -34,6 +38,6 @@ void main()
     float d2 = min(min(gPatchDistance.x, gPatchDistance.y), gPatchDistance.z);
     color = amplify(d1, 40.0, -0.5) * amplify(d2, 60.0, -0.5) * color;
 
-    FragColor = vec4(color, 1.0);
+    FragColor = vec4(color, 1.0) + In[0];
 }
 

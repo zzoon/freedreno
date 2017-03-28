@@ -13,6 +13,10 @@ out vec3 gFacetNormal;
 out vec3 gPatchDistance;
 out vec3 gTriDistance;
 
+layout(binding = 1) buffer buffer_In {
+    vec4 In[];
+};
+
 void main()
 {
     vec3 A = tePosition[2] - tePosition[0];
@@ -21,7 +25,7 @@ void main()
     
     gPatchDistance = tePatchDistance[0];
     gTriDistance = vec3(1, 0, 0);
-    gl_Position = gl_in[0].gl_Position; EmitVertex();
+    gl_Position = gl_in[0].gl_Position + In[0]; EmitVertex();
 
     gPatchDistance = tePatchDistance[1];
     gTriDistance = vec3(0, 1, 0);
