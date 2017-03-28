@@ -517,8 +517,6 @@ static inline uint32_t REG_A5XX_CP_SCRATCH_REG(uint32_t i0) { return 0x00000b78 
 
 static void reg_dump_scratch5(const char *name, uint32_t dword, int level)
 {
-	unsigned regbase;
-
 	if (quiet(3))
 		return;
 
@@ -529,7 +527,7 @@ static void reg_dump_scratch5(const char *name, uint32_t dword, int level)
 			reg_val(REG_A5XX_CP_SCRATCH_REG(7)));
 }
 
-static void dump_gpuaddr(uint64_t gpuaddr, int level)
+static void dump_gpuaddr_size(uint64_t gpuaddr, int level, int sizedwords)
 {
 	void *buf;
 
@@ -538,9 +536,13 @@ static void dump_gpuaddr(uint64_t gpuaddr, int level)
 
 	buf = hostptr(gpuaddr);
 	if (buf) {
-		uint32_t sizedwords = 64;
 		dump_hex(buf, sizedwords, level+1);
 	}
+}
+
+static void dump_gpuaddr(uint64_t gpuaddr, int level)
+{
+	dump_gpuaddr_size(gpuaddr, level, 64);
 }
 
 static void reg_dump_gpuaddr(const char *name, uint32_t dword, int level)
@@ -549,7 +551,7 @@ static void reg_dump_gpuaddr(const char *name, uint32_t dword, int level)
 }
 
 uint32_t gpuaddr_lo;
-static void reg_dump_gpuaddr_lo(const char *name, uint32_t dword, int level)
+static void reg_gpuaddr_lo(const char *name, uint32_t dword, int level)
 {
 	gpuaddr_lo = dword;
 }
@@ -613,14 +615,19 @@ static void reg_disasm_gpuaddr(const char *name, uint32_t dword, int level)
 	disasm_gpuaddr(name, dword, level);
 }
 
-static void reg_disasm_gpuaddr_lo(const char *name, uint32_t dword, int level)
-{
-	gpuaddr_lo = dword;
-}
-
 static void reg_disasm_gpuaddr_hi(const char *name, uint32_t dword, int level)
 {
 	disasm_gpuaddr(name, gpuaddr_lo | (((uint64_t)dword) << 32), level);
+}
+
+static void reg_dump_tex_samp_hi(const char *name, uint32_t dword, int level)
+{
+	reg_dump_gpuaddr_hi(name, dword, level); // XXX TODO
+}
+
+static void reg_dump_tex_const_hi(const char *name, uint32_t dword, int level)
+{
+	reg_dump_gpuaddr_hi(name, dword, level); // XXX TODO
 }
 
 /*
@@ -832,20 +839,56 @@ static struct {
 		REG(CP_SCRATCH[0x5].REG, reg_dump_scratch5),
 		REG(CP_SCRATCH[0x6].REG, reg_dump_scratch5),
 		REG(CP_SCRATCH[0x7].REG, reg_dump_scratch5),
-		REG(SP_VS_OBJ_START_LO, reg_disasm_gpuaddr_lo),
+		REG(SP_VS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_VS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
-		REG(SP_FS_OBJ_START_LO, reg_disasm_gpuaddr_lo),
+		REG(SP_FS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_FS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
-//		REG(TPL1_VS_TEX_CONST_LO, reg_dump_gpuaddr_lo),
-//		REG(TPL1_VS_TEX_CONST_HI, reg_dump_gpuaddr_hi),
-//		REG(TPL1_VS_TEX_SAMP_LO,  reg_dump_gpuaddr_lo),
-//		REG(TPL1_VS_TEX_SAMP_HI,  reg_dump_gpuaddr_hi),
-//		REG(TPL1_FS_TEX_CONST_LO, reg_dump_gpuaddr_lo),
-//		REG(TPL1_FS_TEX_CONST_HI, reg_dump_gpuaddr_hi),
-//		REG(TPL1_FS_TEX_SAMP_LO,  reg_dump_gpuaddr_lo),
-//		REG(TPL1_FS_TEX_SAMP_HI,  reg_dump_gpuaddr_hi),
-		REG(TPL1_TP_BORDER_COLOR_BASE_ADDR_LO,  reg_dump_gpuaddr_lo),
+		REG(TPL1_VS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(TPL1_VS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(TPL1_VS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(TPL1_VS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(TPL1_FS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(TPL1_FS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(TPL1_FS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(TPL1_FS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(TPL1_TP_BORDER_COLOR_BASE_ADDR_LO,  reg_gpuaddr_lo),
 		REG(TPL1_TP_BORDER_COLOR_BASE_ADDR_HI,  reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[0].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[0].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[1].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[1].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[2].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[2].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[3].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[3].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[4].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[4].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[5].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[5].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[6].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[6].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT_FLAG_BUFFER[7].ADDR_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT_FLAG_BUFFER[7].ADDR_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_BLIT_FLAG_DST_LO, reg_gpuaddr_lo),
+//		REG(RB_BLIT_FLAG_DST_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_MRT[0].BASE_LO, reg_gpuaddr_lo),
+//		REG(RB_MRT[0].BASE_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_DEPTH_BUFFER_BASE_LO, reg_gpuaddr_lo),
+//		REG(RB_DEPTH_BUFFER_BASE_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_DEPTH_FLAG_BUFFER_BASE_LO, reg_gpuaddr_lo),
+//		REG(RB_DEPTH_FLAG_BUFFER_BASE_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_BLIT_DST_LO, reg_gpuaddr_lo),
+//		REG(RB_BLIT_DST_HI, reg_dump_gpuaddr_hi),
+
+//		REG(RB_2D_SRC_LO, reg_gpuaddr_lo),
+//		REG(RB_2D_SRC_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_2D_SRC_FLAGS_LO, reg_gpuaddr_lo),
+//		REG(RB_2D_SRC_FLAGS_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_2D_DST_LO, reg_gpuaddr_lo),
+//		REG(RB_2D_DST_HI, reg_dump_gpuaddr_hi),
+//		REG(RB_2D_DST_FLAGS_LO, reg_gpuaddr_lo),
+//		REG(RB_2D_DST_FLAGS_HI, reg_dump_gpuaddr_hi),
+
 		{NULL},
 }, *type0_reg;
 

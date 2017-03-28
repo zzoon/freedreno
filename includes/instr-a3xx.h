@@ -27,6 +27,7 @@
 #define PACKED __attribute__((__packed__))
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <assert.h>
 
 typedef enum {
@@ -187,7 +188,7 @@ typedef enum {
 	OPC_LDGB_TYPED_4D = 27,
 	OPC_STGB_4D_4 = 28,
 	OPC_STIB = 29,
-	OPC_LDC_4 = 30,
+	OPC_LDC = 30,
 	OPC_LDLV = 31,
 
 } opc_t;
@@ -228,6 +229,16 @@ static inline int type_float(type_t type)
 	return (type == TYPE_F32) || (type == TYPE_F16);
 }
 
+static inline int type_uint(type_t type)
+{
+	return (type == TYPE_U32) || (type == TYPE_U16) || (type == TYPE_U8);
+}
+
+static inline int type_sint(type_t type)
+{
+	return (type == TYPE_S32) || (type == TYPE_S16) || (type == TYPE_S8);
+}
+
 typedef union PACKED {
 	/* normal gpr or const src register: */
 	struct PACKED {
@@ -239,6 +250,7 @@ typedef union PACKED {
 	/* to make compiler happy: */
 	uint32_t dummy32;
 	uint32_t dummy10   : 10;
+	int32_t  idummy10  : 10;
 	uint32_t dummy11   : 11;
 	uint32_t dummy12   : 12;
 	uint32_t dummy13   : 13;
@@ -256,8 +268,19 @@ static inline int reg_special(reg_t reg)
 
 typedef struct PACKED {
 	/* dword0: */
-	int16_t  immed    : 16;
-	uint32_t dummy1   : 16;
+	union PACKED {
+		struct PACKED {
+			int16_t  immed    : 16;
+			uint32_t dummy1   : 16;
+		} a3xx;
+		struct PACKED {
+			int32_t  immed    : 20;
+			uint32_t dummy1   : 12;
+		} a4xx;
+		struct PACKED {
+			uint32_t immed    : 32;
+		} a5xx;
+	};
 
 	/* dword1: */
 	uint32_t dummy2   : 8;
@@ -293,6 +316,7 @@ typedef struct PACKED {
 		};
 		/* for immediate: */
 		int32_t iim_val;
+		uint32_t uim_val;
 		float   fim_val;
 	};
 
@@ -438,6 +462,23 @@ typedef struct PACKED {
 	uint32_t opc_cat  : 3;
 } instr_cat3_t;
 
+static inline bool instr_cat3_full(instr_cat3_t *cat3)
+{
+	switch (_OPC(3, cat3->opc)) {
+	case OPC_MAD_F16:
+	case OPC_MAD_U16:
+	case OPC_MAD_S16:
+	case OPC_SEL_B16:
+	case OPC_SEL_S16:
+	case OPC_SEL_F16:
+	case OPC_SAD_S16:
+	case OPC_SAD_S32:  // really??
+		return false;
+	default:
+		return true;
+	}
+}
+
 typedef struct PACKED {
 	/* dword0: */
 	union PACKED {
@@ -579,7 +620,8 @@ typedef struct PACKED {
 
 	uint32_t dst      : 8;
 	uint32_t mustbe0  : 1;
-	uint32_t pad0     : 23;
+	uint32_t idx      : 8;
+	uint32_t pad0     : 15;
 } instr_cat6d_t;
 
 
@@ -621,17 +663,60 @@ typedef union PACKED {
 	instr_cat6_t cat6;
 	struct PACKED {
 		/* dword0: */
-		uint64_t pad1     : 40;
+		uint32_t pad1     : 32;
+
+		/* dword1: */
+		uint32_t pad2     : 8;
 		uint32_t repeat   : 3;  /* cat0-cat4 */
-		uint32_t pad2     : 1;
+		uint32_t pad3     : 1;
 		uint32_t ss       : 1;  /* cat1-cat4 (cat0??) */
 		uint32_t ul       : 1;  /* cat2-cat4 (and cat1 in blob.. which may be bug??) */
-		uint32_t pad3     : 13;
+		uint32_t pad4     : 13;
 		uint32_t jmp_tgt  : 1;
 		uint32_t sync     : 1;
 		uint32_t opc_cat  : 3;
 
 	};
 } instr_t;
+
+static inline uint32_t instr_opc(instr_t *instr)
+{
+	switch (instr->opc_cat) {
+	case 0:  return instr->cat0.opc;
+	case 1:  return 0;
+	case 2:  return instr->cat2.opc;
+	case 3:  return instr->cat3.opc;
+	case 4:  return instr->cat4.opc;
+	case 5:  return instr->cat5.opc;
+	case 6:  return instr->cat6.opc;
+	default: return 0;
+	}
+}
+
+static inline bool is_mad(opc_t opc)
+{
+	switch (opc) {
+	case OPC_MAD_U16:
+	case OPC_MAD_S16:
+	case OPC_MAD_U24:
+	case OPC_MAD_S24:
+	case OPC_MAD_F16:
+	case OPC_MAD_F32:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static inline bool is_madsh(opc_t opc)
+{
+	switch (opc) {
+	case OPC_MADSH_U16:
+	case OPC_MADSH_M16:
+		return true;
+	default:
+		return false;
+	}
+}
 
 #endif /* INSTR_A3XX_H_ */

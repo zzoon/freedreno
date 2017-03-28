@@ -24,15 +24,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <assert.h>
 
 #include "disasm.h"
 #include "instr-a3xx.h"
-
-typedef enum {
-	true = 1, false = 0,
-} bool;
 
 extern enum debug_t debug;
 
@@ -340,16 +337,16 @@ static void print_instr_cat0(instr_t *instr)
 		break;
 	case OPC_BR:
 		printf(" %sp0.%c, #%d", cat0->inv ? "!" : "",
-				component[cat0->comp], cat0->immed);
+				component[cat0->comp], cat0->a5xx.immed);
 		break;
 	case OPC_JUMP:
 	case OPC_CALL:
-		printf(" #%d", cat0->immed);
+		printf(" #%d", cat0->a5xx.immed);
 		break;
 	}
 
-	if ((debug & PRINT_VERBOSE) && (cat0->dummy1|cat0->dummy2|cat0->dummy3|cat0->dummy4))
-		printf("\t{0: %x,%x,%x,%x}", cat0->dummy1, cat0->dummy2, cat0->dummy3, cat0->dummy4);
+	if ((debug & PRINT_VERBOSE) && (cat0->dummy2|cat0->dummy3|cat0->dummy4))
+		printf("\t{0: %x,%x,%x}", cat0->dummy2, cat0->dummy3, cat0->dummy4);
 }
 
 static void print_instr_cat1(instr_t *instr)
@@ -751,6 +748,7 @@ static void print_instr_cat6(instr_t *instr)
 		break;
 
 	case OPC_LDG:
+	case OPC_LDC:
 		ss = 'g';
 		break;
 	case OPC_LDP:
@@ -1002,7 +1000,7 @@ struct opc_info {
 	OPC(6, OPC_LDGB_TYPED_4D,    ldgb.typed.3d),
 	OPC(6, OPC_STGB_4D_4,    stgb.4d.4),
 	OPC(6, OPC_STIB,         stib),
-	OPC(6, OPC_LDC_4,        ldc.4),
+	OPC(6, OPC_LDC,          ldc),
 	OPC(6, OPC_LDLV,         ldlv),
 
 
