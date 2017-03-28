@@ -1184,10 +1184,111 @@ static void cp_wide_reg_write(uint32_t *dwords, uint32_t sizedwords, int level)
 	}
 }
 
+enum state_t {
+	TEX_SAMP = 1,
+	TEX_CONST,
+	TEX_MIPADDR,  /* a3xx only */
+	SHADER_PROG,
+	SHADER_CONST,
+	// unknown things, just to hexdumps:
+	UNKNOWN_DWORDS,
+	UNKNOWN_2DWORDS,
+	UNKNOWN_4DWORDS,
+};
+
+/* TODO there is probably a clever way to let rnndec parse things so
+ * we don't have to care about packet format differences across gens
+ */
+
+static void
+a3xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
+{
+	unsigned state_block_id = (dwords[0] >> 19) & 0x7;
+	unsigned state_type = dwords[1] & 0x3;
+	static const struct {
+		enum shader_t stage;
+		enum state_t state;
+	} lookup[0xf][0x3] = {
+		[SB_VERT_TEX][0]    = { SHADER_VERTEX,    TEX_SAMP },
+		[SB_VERT_TEX][1]    = { SHADER_VERTEX,    TEX_CONST },
+		[SB_FRAG_TEX][0]    = { SHADER_FRAGMENT,  TEX_SAMP },
+		[SB_FRAG_TEX][1]    = { SHADER_FRAGMENT,  TEX_CONST },
+		[SB_VERT_SHADER][0] = { SHADER_VERTEX,    SHADER_PROG },
+		[SB_VERT_SHADER][1] = { SHADER_VERTEX,    SHADER_CONST },
+		[SB_FRAG_SHADER][0] = { SHADER_FRAGMENT,  SHADER_PROG },
+		[SB_FRAG_SHADER][1] = { SHADER_FRAGMENT,  SHADER_CONST },
+	};
+
+	*stage = lookup[state_block_id][state_type].stage;
+	*state = lookup[state_block_id][state_type].state;
+}
+
+static void
+a4xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
+{
+	unsigned state_block_id = (dwords[0] >> 18) & 0xf;
+	unsigned state_type = dwords[1] & 0x3;
+	static const struct {
+		enum shader_t stage;
+		enum state_t  state;
+	} lookup[0x10][0x3] = {
+		// SB4_VS_TEX:
+		[0x0][0] = { SHADER_VERTEX,    TEX_SAMP },
+		[0x0][1] = { SHADER_VERTEX,    TEX_CONST },
+		// SB4_HS_TEX:
+		[0x1][0] = { SHADER_TCS,       TEX_SAMP },
+		[0x1][1] = { SHADER_TCS,       TEX_CONST },
+		// SB4_DS_TEX:
+		[0x2][0] = { SHADER_TES,       TEX_SAMP },
+		[0x2][1] = { SHADER_TES,       TEX_CONST },
+		// SB4_GS_TEX:
+		[0x3][0] = { SHADER_GEOM,      TEX_SAMP },
+		[0x3][1] = { SHADER_GEOM,      TEX_CONST },
+		// SB4_FS_TEX:
+		[0x4][0] = { SHADER_FRAGMENT,  TEX_SAMP },
+		[0x4][1] = { SHADER_FRAGMENT,  TEX_CONST },
+		// SB4_CS_TEX:
+		[0x5][0] = { SHADER_COMPUTE,   TEX_SAMP },
+		[0x5][1] = { SHADER_COMPUTE,   TEX_CONST },
+		// SB4_VS_SHADER:
+		[0x8][0] = { SHADER_VERTEX,    SHADER_PROG },
+		[0x8][1] = { SHADER_VERTEX,    SHADER_CONST },
+		// SB4_HS_SHADER
+		[0x9][0] = { SHADER_TCS,       SHADER_PROG },
+		[0x9][1] = { SHADER_TCS,       SHADER_CONST },
+		// SB4_DS_SHADER
+		[0xa][0] = { SHADER_TES,       SHADER_PROG },
+		[0xa][1] = { SHADER_TES,       SHADER_CONST },
+		// SB4_GS_SHADER
+		[0xb][0] = { SHADER_GEOM,      SHADER_PROG },
+		[0xb][1] = { SHADER_GEOM,      SHADER_CONST },
+		// SB4_FS_SHADER:
+		[0xc][0] = { SHADER_FRAGMENT,  SHADER_PROG },
+		[0xc][1] = { SHADER_FRAGMENT,  SHADER_CONST },
+		// SB4_CS_SHADER:
+		[0xd][0] = { SHADER_COMPUTE,   SHADER_PROG },
+		[0xd][1] = { SHADER_COMPUTE,   SHADER_CONST },
+		// SB4_SSBO (shared across all stages)
+		[0xe][0] = { 0, UNKNOWN_4DWORDS },
+		[0xe][1] = { 0, UNKNOWN_2DWORDS },
+		[0xe][2] = { 0, UNKNOWN_2DWORDS },
+		// SB4_CS_SSBO
+		[0xf][0] = { SHADER_COMPUTE, UNKNOWN_4DWORDS },
+		[0xf][1] = { SHADER_COMPUTE, UNKNOWN_2DWORDS },
+		[0xf][2] = { SHADER_COMPUTE, UNKNOWN_2DWORDS },
+		// unknown things
+		[0x6][2] = { 0, UNKNOWN_DWORDS },
+		[0x7][1] = { 0, UNKNOWN_2DWORDS },
+	};
+
+	*stage = lookup[state_block_id][state_type].stage;
+	*state = lookup[state_block_id][state_type].state;
+}
+
 static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 {
-	enum adreno_state_block state_block_id = (dwords[0] >> 19) & 0x7;
-	enum adreno_state_type state_type = dwords[1] & 0x3;
+	enum shader_t stage;
+	enum state_t state;
 	uint32_t num_unit = (dwords[0] >> 22) & 0x1ff;
 	uint64_t ext_src_addr;
 	void *contents = NULL;
@@ -1195,6 +1296,11 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 
 	if (quiet(2))
 		return;
+
+	if (gpu_id >= 400)
+		a4xx_get_state_type(dwords, &stage, &state);
+	else
+		a3xx_get_state_type(dwords, &stage, &state);
 
 	if (is_64b()) {
 		ext_src_addr = dwords[1] & 0xfffffffc;
@@ -1214,138 +1320,144 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 	if (!contents)
 		return;
 
-	switch (state_block_id) {
-	case SB_FRAG_SHADER:
-	case SB_GEOM_SHADER:
-	case SB_VERT_SHADER:
-	case SB_COMPUTE_SHADER:
-		if (state_type == ST_SHADER) {
-			const char *ext = NULL;
+	switch (state) {
+	case SHADER_PROG: {
+		const char *ext = NULL;
 
-			if (gpu_id >= 400)
-				num_unit *= 16;
-			else if (gpu_id >= 300)
-				num_unit *= 4;
+		if (gpu_id >= 400)
+			num_unit *= 16;
+		else if (gpu_id >= 300)
+			num_unit *= 4;
 
-			/* shaders:
-			 *
-			 * note: num_unit seems to be # of instruction groups, where
-			 * an instruction group has 4 64bit instructions.
-			 */
-			if (state_block_id == SB_VERT_SHADER) {
-				ext = "vo3";
-			} else if (state_block_id == SB_GEOM_SHADER) {
-				ext = "go3";
-			} else if (state_block_id == SB_COMPUTE_SHADER) {
-				ext = "co3";
-			} else {
-				ext = "fo3";
+		/* shaders:
+		 *
+		 * note: num_unit seems to be # of instruction groups, where
+		 * an instruction group has 4 64bit instructions.
+		 */
+		if (stage == SHADER_VERTEX) {
+			ext = "vo3";
+		} else if (stage == SHADER_GEOM) {
+			ext = "go3";
+		} else if (stage == SHADER_COMPUTE) {
+			ext = "co3";
+		} else if (stage == SHADER_FRAGMENT){
+			ext = "fo3";
+		}
+
+		if (contents)
+			disasm_a3xx(contents, num_unit * 2, level+2, 0);
+
+		/* dump raw shader: */
+		if (ext)
+			dump_shader(ext, contents, num_unit * 2 * 4);
+
+		break;
+	}
+	case SHADER_CONST: {
+		/* uniforms/consts:
+		 *
+		 * note: num_unit seems to be # of pairs of dwords??
+		 */
+
+		if (gpu_id >= 400)
+			num_unit *= 2;
+
+		dump_float(contents, num_unit*2, level+1);
+		dump_hex(contents, num_unit*2, level+1);
+
+		break;
+	}
+	case TEX_MIPADDR: {
+		uint32_t *addrs = contents;
+
+		/* mipmap consts block just appears to be array of num_unit gpu addr's: */
+		for (i = 0; i < num_unit; i++) {
+			void *ptr = hostptr(addrs[i]);
+			printf("%s%2d: %08x\n", levels[level+1], i, addrs[i]);
+			if (dump_textures) {
+				printf("base=%08x\n", gpubaseaddr(addrs[i]));
+				dump_hex(ptr, hostlen(addrs[i])/4, level+1);
 			}
-
-			if (contents)
-				disasm_a3xx(contents, num_unit * 2, level+2, 0);
-
-			/* dump raw shader: */
-			if (ext)
-				dump_shader(ext, contents, num_unit * 2 * 4);
-		} else {
-			/* uniforms/consts:
-			 *
-			 * note: num_unit seems to be # of pairs of dwords??
-			 */
-
-			if (gpu_id >= 400)
-				num_unit *= 2;
-
-			dump_float(contents, num_unit*2, level+1);
-			dump_hex(contents, num_unit*2, level+1);
 		}
 		break;
-	case SB_VERT_MIPADDR:
-	case SB_FRAG_MIPADDR:
-		if (state_type == ST_CONSTANTS) {
-			uint32_t *addrs = contents;
+	}
+	case TEX_SAMP: {
+		uint32_t *texsamp = (uint32_t *)contents;
+		for (i = 0; i < num_unit; i++) {
+			/* work-around to reduce noise for opencl blob which always
+			 * writes the max # regardless of # of textures used
+			 */
+			if ((num_unit == 16) && (texsamp[0] == 0) && (texsamp[1] == 0))
+				break;
 
-			/* mipmap consts block just appears to be array of num_unit gpu addr's: */
-			for (i = 0; i < num_unit; i++) {
-				void *ptr = hostptr(addrs[i]);
-				printf("%s%2d: %08x\n", levels[level+1], i, addrs[i]);
+			if ((300 <= gpu_id) && (gpu_id < 400)) {
+				dump_domain(texsamp, 2, level+2, "A3XX_TEX_SAMP");
+				dump_hex(texsamp, 2, level+1);
+				texsamp += 2;
+			} else if ((400 <= gpu_id) && (gpu_id < 500)) {
+				dump_domain(texsamp, 2, level+2, "A4XX_TEX_SAMP");
+				dump_hex(texsamp, 2, level+1);
+				texsamp += 2;
+			} else if ((500 <= gpu_id) && (gpu_id < 600)) {
+				dump_domain(texsamp, 4, level+2, "A5XX_TEX_SAMP");
+				dump_hex(texsamp, 4, level+1);
+				texsamp += 4;
+			}
+		}
+		break;
+	}
+	case TEX_CONST: {
+		uint32_t *texconst = (uint32_t *)contents;
+		for (i = 0; i < num_unit; i++) {
+			/* work-around to reduce noise for opencl blob which always
+			 * writes the max # regardless of # of textures used
+			 */
+			if ((num_unit == 16) &&
+				(texconst[0] == 0) && (texconst[1] == 0) &&
+				(texconst[2] == 0) && (texconst[3] == 0))
+				break;
+
+			if ((300 <= gpu_id) && (gpu_id < 400)) {
+				dump_domain(texconst, 4, level+2, "A3XX_TEX_CONST");
+				dump_hex(texconst, 4, level+1);
+				texconst += 4;
+			} else if ((400 <= gpu_id) && (gpu_id < 500)) {
+				dump_domain(texconst, 8, level+2, "A4XX_TEX_CONST");
 				if (dump_textures) {
-					printf("base=%08x\n", gpubaseaddr(addrs[i]));
-					dump_hex(ptr, hostlen(addrs[i])/4, level+1);
+					uint32_t addr = texconst[4] & ~0x1f;
+					dump_gpuaddr(addr, level-2);
 				}
-			}
-		} else {
-			goto unknown;
-		}
-		break;
-	case SB_FRAG_TEX:
-	case SB_VERT_TEX:
-		if (state_type == ST_SHADER) {
-			uint32_t *texsamp = (uint32_t *)contents;
-			for (i = 0; i < num_unit; i++) {
-				/* work-around to reduce noise for opencl blob which always
-				 * writes the max # regardless of # of textures used
-				 */
-				if ((num_unit == 16) && (texsamp[0] == 0) && (texsamp[1] == 0))
-					break;
-
-				if ((300 <= gpu_id) && (gpu_id < 400)) {
-					dump_domain(texsamp, 2, level+2, "A3XX_TEX_SAMP");
-					dump_hex(texsamp, 2, level+1);
-					texsamp += 2;
-				} else if ((400 <= gpu_id) && (gpu_id < 500)) {
-					dump_domain(texsamp, 2, level+2, "A4XX_TEX_SAMP");
-					dump_hex(texsamp, 2, level+1);
-					texsamp += 2;
-				} else if ((500 <= gpu_id) && (gpu_id < 600)) {
-					dump_domain(texsamp, 4, level+2, "A5XX_TEX_SAMP");
-					dump_hex(texsamp, 4, level+1);
-					texsamp += 4;
+				dump_hex(texconst, 8, level+1);
+				texconst += 8;
+			} else if ((500 <= gpu_id) && (gpu_id < 600)) {
+				dump_domain(texconst, 12, level+2, "A5XX_TEX_CONST");
+				if (dump_textures) {
+					uint64_t addr = (((uint64_t)texconst[5] & 0x1ffff) << 32) | texconst[4];
+					dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4);
 				}
-			}
-		} else {
-			uint32_t *texconst = (uint32_t *)contents;
-			for (i = 0; i < num_unit; i++) {
-				/* work-around to reduce noise for opencl blob which always
-				 * writes the max # regardless of # of textures used
-				 */
-				if ((num_unit == 16) &&
-					(texconst[0] == 0) && (texconst[1] == 0) &&
-					(texconst[2] == 0) && (texconst[3] == 0))
-					break;
-
-				if ((300 <= gpu_id) && (gpu_id < 400)) {
-					dump_domain(texconst, 4, level+2, "A3XX_TEX_CONST");
-					dump_hex(texconst, 4, level+1);
-					texconst += 4;
-				} else if ((400 <= gpu_id) && (gpu_id < 500)) {
-					dump_domain(texconst, 8, level+2, "A4XX_TEX_CONST");
-					if (dump_textures) {
-						uint32_t addr = texconst[4] & ~0x1f;
-						dump_gpuaddr(addr, level-2);
-					}
-					dump_hex(texconst, 8, level+1);
-					texconst += 8;
-				} else if ((500 <= gpu_id) && (gpu_id < 600)) {
-					dump_domain(texconst, 12, level+2, "A5XX_TEX_CONST");
-					if (dump_textures) {
-						uint64_t addr = (((uint64_t)texconst[5] & 0x1ffff) << 32) | texconst[4];
-						dump_gpuaddr(addr, level-2);
-					}
-					dump_hex(texconst, 12, level+1);
-					texconst += 12;
-				}
+				dump_hex(texconst, 12, level+1);
+				texconst += 12;
 			}
 		}
 		break;
+	}
+	case UNKNOWN_DWORDS: {
+		dump_hex(contents, num_unit, level+1);
+		break;
+	}
+	case UNKNOWN_2DWORDS: {
+		dump_hex(contents, num_unit * 2, level+1);
+		break;
+	}
+	case UNKNOWN_4DWORDS: {
+		dump_hex(contents, num_unit * 4, level+1);
+		break;
+	}
 	default:
-unknown:
 		/* hmm.. */
 		dump_hex(contents, num_unit, level+1);
 		break;
 	}
-
 }
 
 static void cp_set_bin(uint32_t *dwords, uint32_t sizedwords, int level)
