@@ -53,20 +53,28 @@ struct ubodata {
 	float c[512][4];
 } ubodata;
 
-static void compile_shader(GLint program, int fd, GLenum type)
+const char *readfile(int fd)
 {
-	GLuint shader;
 	static char text[64 * 1024];
-	const GLchar *const t = text;
 	int ret = read(fd, text, sizeof(text));
 	if (ret < 0) {
 		ERROR_MSG("error reading shader: %d", ret);
-		return;
+		exit(-1);
 	}
 	text[ret] = '\0';
+	return strdup(text);
+}
+
+static void compile_shader(GLint program, int fd, GLenum type)
+{
+	GLuint shader;
+	GLint ret;
+	const char *source = readfile(fd);
+
+	DEBUG_MSG("shader: \n%s\n", source);
 
 	GCHK(shader = glCreateShader(type));
-	GCHK(glShaderSource(shader, 1, &t, NULL));
+	GCHK(glShaderSource(shader, 1, &source, NULL));
 	GCHK(glCompileShader(shader));
 	GCHK(glGetShaderiv(shader, GL_COMPILE_STATUS, &ret));
 	if (!ret) {
@@ -94,13 +102,15 @@ static void *getpix(unsigned npix)
 	return pix;
 }
 
-static void setup_textures(GLint program)
-{
-	int handle, tex, unit = 0;
 
-	handle = glGetUniformLocation(program, "uTexture2D");
+
+static int setup_tex2d(int program, const char *name, int unit, int image)
+{
+	int handle, tex;
+
+	handle = glGetUniformLocation(program, name);
 	if (handle >= 0) {
-		DEBUG_MSG("setup uTexture2D");
+		DEBUG_MSG("setup %s", name);
 
 		glGenTextures(1, &tex);
 
@@ -110,16 +120,38 @@ static void setup_textures(GLint program)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, getpix(32 * 32));
+		if (image) {
+			glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 200, 200);
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 200, 200, GL_RGBA, GL_UNSIGNED_BYTE, getpix(200 * 200 * 4));
+		} else {
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 200, 200, 0, GL_RGBA, GL_UNSIGNED_BYTE, getpix(200 * 200 * 4));
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_LOD, 1);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LOD, 4);
+#ifndef GL_TEXTURE_LOD_BIAS_EXT
+#define GL_TEXTURE_LOD_BIAS_EXT           0x8501
+#endif
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_LOD_BIAS_EXT, 1);
+			glGenerateMipmap(GL_TEXTURE_2D);
+		}
 
 		glUniform1i(handle, unit);
+
+		if (image)
+			glBindImageTexture(unit, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
 
 		unit++;
 	}
 
-	handle = glGetUniformLocation(program, "uTexture3D");
+	return unit;
+}
+
+static int setup_tex3d(int program, const char *name, int unit, int image)
+{
+	int handle, tex;
+
+	handle = glGetUniformLocation(program, name);
 	if (handle >= 0) {
-		DEBUG_MSG("setup uTexture3D");
+		DEBUG_MSG("setup %s", name);
 
 		glGenTextures(1, &tex);
 
@@ -134,19 +166,101 @@ static void setup_textures(GLint program)
 
 		glUniform1i(handle, unit);
 
+		if (image)
+			glBindImageTexture(unit, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32I);
+
 		unit++;
 	}
+
+	return unit;
+}
+
+static int setup_texcube(int program, const char *name, int unit)
+{
+	int handle, tex;
+
+	handle = glGetUniformLocation(program, name);
+	if (handle >= 0) {
+		DEBUG_MSG("setup %s", name);
+
+		glGenTextures(1, &tex);
+
+		glActiveTexture(GL_TEXTURE0 + unit);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, tex);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_RGBA32F, 200, 200, 0, GL_RGBA, GL_FLOAT, getpix(200 * 200 * 4));
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, GL_RGBA32F, 200, 200, 0, GL_RGBA, GL_FLOAT, getpix(200 * 200 * 4));
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, GL_RGBA32F, 200, 200, 0, GL_RGBA, GL_FLOAT, getpix(200 * 200 * 4));
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, GL_RGBA32F, 200, 200, 0, GL_RGBA, GL_FLOAT, getpix(200 * 200 * 4));
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, GL_RGBA32F, 200, 200, 0, GL_RGBA, GL_FLOAT, getpix(200 * 200 * 4));
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, GL_RGBA32F, 200, 200, 0, GL_RGBA, GL_FLOAT, getpix(200 * 200 * 4));
+
+		glUniform1i(handle, unit);
+
+		unit++;
+	}
+
+	return unit;
+}
+
+static void setup_textures(GLint program)
+{
+	int unit = 0;
+
+	unit = setup_tex2d(program, "uTexture2D", unit, 0);
+	unit = setup_tex2d(program, "uTex2D0",    unit, 0);
+	unit = setup_tex2d(program, "uTex2D1",    unit, 0);
+	unit = setup_tex2d(program, "uTex2D2",    unit, 0);
+	unit = setup_tex2d(program, "uTex2D3",    unit, 0);
+	unit = setup_tex2d(program, "uTex2D4",    unit, 0);
+	unit = setup_tex2d(program, "uTex2D5",    unit, 0);
+	unit = setup_tex3d(program, "uTexture3D", unit, 0);
+	unit = setup_tex3d(program, "uTex3D0",    unit, 0);
+	unit = setup_tex3d(program, "uTex3D1",    unit, 0);
+	unit = setup_texcube(program, "uTexCube0", unit);
+	unit = setup_texcube(program, "uTexCube1", unit);
+	unit = setup_texcube(program, "uTexCube2", unit);
+	unit = setup_texcube(program, "uTexCube3", unit);
+
+	unit = setup_tex2d(program, "uImage2D0",  unit, 1);
+	unit = setup_tex2d(program, "uImage2D1",  unit, 1);
+	unit = setup_tex3d(program, "uImage3D0",  unit, 1);
+	unit = setup_tex3d(program, "uImage3D1",  unit, 1);
 
 	// TODO other texture types..
 }
 
+static void setup_ssbo(GLint program, const char *name)
+{
+	GLuint ssbo = 0, block_index;
+	static int cnt = 0;
+
+	block_index = glGetProgramResourceIndex(program, GL_SHADER_STORAGE_BLOCK, name);
+	if (block_index == GL_INVALID_INDEX)
+		return;
+
+	DEBUG_MSG("SSBO: %s at %u", name, block_index);
+
+	int sz = 33 * ++cnt;
+	int buf[sz];
+
+	glGenBuffers(1, &ssbo);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(buf), buf, GL_STATIC_DRAW);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, block_index, ssbo);
+}
+
 int test_compiler(int n)
 {
-	static char vert_shader[64 * 1024], frag_shader[64 * 1024];
 	static GLfloat v[ARRAY_SIZE(attrnames)][NVERT * 4];
 	static int nattr = 0;
 	GLuint program;
-	int vert_fd, frag_fd, gs_fd, tcs_fd, tes_fd;
+	int vert_fd, frag_fd, gs_fd, tcs_fd, tes_fd, cs_fd;
 	int i, ret;
 
 	vert_fd = openfile("shaders/%04d.vs", n);
@@ -154,22 +268,19 @@ int test_compiler(int n)
 	tes_fd = openfile("shaders/%04d.tes", n);
 	gs_fd = openfile("shaders/%04d.gs", n);
 	frag_fd = openfile("shaders/%04d.fs", n);
-	if ((vert_fd < 0) || (frag_fd < 0))
+	cs_fd = openfile("shaders/%04d.cs", n);
+	if ((vert_fd < 0) || (frag_fd < 0)) {
+		if (cs_fd >= 0) {
+			RD_START("compiler-compute", "%d", n);
+			program = get_compute_program(readfile(cs_fd));
+			goto link;
+		}
 		return -1;
-
-	ret = read(vert_fd, vert_shader, sizeof(vert_shader));
-	if (ret < 0)
-		return ret;
-	vert_shader[ret] = '\0';
-
-	ret = read(frag_fd, frag_shader, sizeof(frag_shader));
-	if (ret < 0)
-		return ret;
-	frag_shader[ret] = '\0';
+	}
 
 	RD_START("compiler", "%d", n);
 
-	program = get_program(vert_shader, frag_shader);
+	program = get_program(readfile(vert_fd), readfile(frag_fd));
 
 	if (tcs_fd >= 0)
 		compile_shader(program, tcs_fd, 0x8E88/*GL_TESS_CONTROL_SHADER*/);
@@ -187,6 +298,8 @@ int test_compiler(int n)
 		/* clear any errors, just in case: */
 		while (glGetError() != GL_NO_ERROR) {}
 	}
+
+link:
 
 	link_program(program);
 
@@ -214,14 +327,24 @@ int test_compiler(int n)
 	}
 
 	setup_textures(program);
+	setup_ssbo(program, "buffer_In");
+	setup_ssbo(program, "buffer_In2");
+	setup_ssbo(program, "buffer_In3");
+	setup_ssbo(program, "buffer_Out");
+	setup_ssbo(program, "buffer_Out2");
+	setup_ssbo(program, "buffer_Out3");
 
 	/* clear any errors, just in case: */
 	while (glGetError() != GL_NO_ERROR) {}
 
-	if (tes_fd >= 0)
+	if (tes_fd >= 0) {
 		GCHK(glDrawArrays(0x000E/*GL_PATCHES*/, 0, NVERT));
-	else
-		GCHK(glDrawArrays(GL_TRIANGLES, 0, NVERT));
+	} else if (cs_fd >= 0) {
+		PFNGLDISPATCHCOMPUTEPROC glDispatchCompute = eglGetProcAddress("glDispatchCompute");
+		GCHK(glDispatchCompute(1, 2, 3));
+	} else {
+		GCHK(glDrawArrays(GL_POINTS, 0, NVERT));
+	}
 
 	ECHK(eglSwapBuffers(display, surface));
 	GCHK(glFlush());
