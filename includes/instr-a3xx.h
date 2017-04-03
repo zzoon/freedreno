@@ -185,8 +185,8 @@ typedef enum {
 	OPC_ATOMIC_AND = 24,
 	OPC_ATOMIC_OR = 25,
 	OPC_ATOMIC_XOR = 26,
-	OPC_LDGB_TYPED_4D = 27,
-	OPC_STGB_4D_4 = 28,
+	OPC_LDGB = 27,
+	OPC_STGB = 28,
 	OPC_STIB = 29,
 	OPC_LDC = 30,
 	OPC_LDLV = 31,
@@ -624,16 +624,59 @@ typedef struct PACKED {
 	uint32_t pad0     : 15;
 } instr_cat6d_t;
 
-
-/* I think some of the other cat6 instructions use additional
- * sub-encodings..
+/* ldgb and atomics.. atomics use 3rd src and pad0=1, pad3=3.  For
+ * ldgb pad0=0, pad3=2
  */
+typedef struct PACKED {
+	/* dword0: */
+	uint32_t pad0     : 1;
+	uint32_t src3     : 8;
+	uint32_t d        : 2;
+	uint32_t typed    : 1;
+	uint32_t type_size : 2;
+	uint32_t src1     : 8;
+	uint32_t src1_im  : 1;
+	uint32_t src2_im  : 1;
+	uint32_t src2     : 8;
+
+	/* dword1: */
+	uint32_t dst      : 8;
+	uint32_t mustbe0  : 1;
+	uint32_t src_ssbo : 8;
+	uint32_t pad2     : 3;  // type
+	uint32_t pad3     : 2;
+	uint32_t pad4     : 10; // opc/jmp_tgt/sync/opc_cat
+} instr_cat6ldgb_t;
+
+/* stgb, pad0=0, pad3=2
+ */
+typedef struct PACKED {
+	/* dword0: */
+	uint32_t mustbe1  : 1;  // ???
+	uint32_t src1     : 8;
+	uint32_t d        : 2;
+	uint32_t typed    : 1;
+	uint32_t type_size : 2;
+	uint32_t pad0     : 9;
+	uint32_t src2_im  : 1;
+	uint32_t src2     : 8;
+
+	/* dword1: */
+	uint32_t src3     : 8;
+	uint32_t src3_im  : 1;
+	uint32_t dst_ssbo : 8;
+	uint32_t pad2     : 3;  // type
+	uint32_t pad3     : 2;
+	uint32_t pad4     : 10; // opc/jmp_tgt/sync/opc_cat
+} instr_cat6stgb_t;
 
 typedef union PACKED {
 	instr_cat6a_t a;
 	instr_cat6b_t b;
 	instr_cat6c_t c;
 	instr_cat6d_t d;
+	instr_cat6ldgb_t ldgb;
+	instr_cat6stgb_t stgb;
 	struct PACKED {
 		/* dword0: */
 		uint32_t src_off  : 1;
@@ -713,6 +756,26 @@ static inline bool is_madsh(opc_t opc)
 	switch (opc) {
 	case OPC_MADSH_U16:
 	case OPC_MADSH_M16:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static inline bool is_atomic(opc_t opc)
+{
+	switch (opc) {
+	case OPC_ATOMIC_ADD:
+	case OPC_ATOMIC_SUB:
+	case OPC_ATOMIC_XCHG:
+	case OPC_ATOMIC_INC:
+	case OPC_ATOMIC_DEC:
+	case OPC_ATOMIC_CMPXCHG:
+	case OPC_ATOMIC_MIN:
+	case OPC_ATOMIC_MAX:
+	case OPC_ATOMIC_AND:
+	case OPC_ATOMIC_OR:
+	case OPC_ATOMIC_XOR:
 		return true;
 	default:
 		return false;
