@@ -719,6 +719,7 @@ static void print_instr_cat6(instr_t *instr)
 		printf(".%d", cat6->ldgb.type_size + 1);
 		break;
 	case OPC_STGB:
+	case OPC_STIB:
 		printf(".%s", cat6->stgb.typed ? "typed" : "untyped");
 		printf(".%dd", cat6->stgb.d + 1);
 		printf(".%s", type[cat6->type]);
@@ -791,7 +792,7 @@ static void print_instr_cat6(instr_t *instr)
 		break;
 	}
 
-	if (cat6->opc == OPC_STGB) {
+	if ((cat6->opc == OPC_STGB) || (cat6->opc == OPC_STIB)) {
 		struct reginfo src3;
 
 		memset(&src3, 0, sizeof(src3));
