@@ -1129,6 +1129,18 @@ static uint32_t bin_x1, bin_x2, bin_y1, bin_y2;
 static unsigned mode;
 static unsigned render_mode;
 
+static const char *mode_name(unsigned render_mode)
+{
+	// TODO should probably get this from rnndb..
+	switch(render_mode) {
+	case 1: return "BYPASS";
+	case 2: return "BINNING";
+	case 3: return "GMEM";
+	case 5: return "BLIT2D";
+	default: return "???";
+	}
+}
+
 /* well, actually query and script..
  * NOTE: call this before dump_register_summary()
  */
@@ -1136,6 +1148,17 @@ static void do_query(const char *primtype, uint32_t num_indices)
 {
 	int i;
 	int n = 0;
+
+	if ((500 <= gpu_id) && (gpu_id < 600)) {
+		uint32_t scissor_tl = reg_val(regbase("GRAS_SC_WINDOW_SCISSOR_TL"));
+		uint32_t scissor_br = reg_val(regbase("GRAS_SC_WINDOW_SCISSOR_BR"));
+
+		bin_x1 = scissor_tl & 0xffff;
+		bin_y1 = scissor_tl >> 16;
+		bin_x2 = scissor_br & 0xffff;
+		bin_y2 = scissor_br >> 16;
+	}
+
 	for (i = 0; i < nquery; i++) {
 		uint32_t regbase = queryvals[i];
 		if (reg_written(regbase)) {
@@ -1143,7 +1166,7 @@ static void do_query(const char *primtype, uint32_t num_indices)
 			printf("%4d: %s(%u,%u-%u,%u):%u:", draw_count, primtype,
 					bin_x1, bin_y1, bin_x2, bin_y2, num_indices);
 			if (gpu_id >= 500)
-				printf("m%d:%s:", render_mode, (mode & CP_SET_RENDER_MODE_3_GMEM_ENABLE) ? "GMEM" : "BYPASS");
+				printf("m%d:%s:", render_mode, mode_name(render_mode));
 			printf("\t%08x", lastval);
 			if (lastval != lastvals[regbase]) {
 				printf("!");
@@ -1813,8 +1836,7 @@ static void cp_draw_indx_offset(uint32_t *dwords, uint32_t sizedwords, int level
 	summary = false;
 
 	if ((gpu_id >= 500) && !quiet(2)) {
-		printf("%smode: %s\n", levels[level],
-				(mode & CP_SET_RENDER_MODE_3_GMEM_ENABLE) ? "GMEM" : "BYPASS");
+		printf("%smode: %s\n", levels[level], mode_name(render_mode));
 	}
 
 	/* don't bother dumping registers for the dummy draw_indx's.. */
