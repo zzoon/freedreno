@@ -626,6 +626,8 @@ typedef struct PACKED {
 
 /* ldgb and atomics.. atomics use 3rd src and pad0=1, pad3=3.  For
  * ldgb pad0=0, pad3=2
+ *
+ * note: we can probably merge these..
  */
 typedef struct PACKED {
 	/* dword0: */
