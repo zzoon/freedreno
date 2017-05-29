@@ -26,7 +26,6 @@
  * perf cntrs..
  */
 
-#include <GLES3/gl3.h>
 #include "test-util-3d.h"
 
 #ifndef GL_AMD_performance_monitor
@@ -132,6 +131,19 @@ void test_perf(int n, int w, int h)
 		GCHK(glClearColor(clear_color[0], clear_color[1], clear_color[2], clear_color[3]));
 		GCHK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 	}
+
+#define getproc(type, name)  type name = eglGetProcAddress(#name)
+
+	getproc(PFNGLGETPERFMONITORGROUPSAMDPROC, glGetPerfMonitorGroupsAMD);
+	getproc(PFNGLGETPERFMONITORCOUNTERSAMDPROC, glGetPerfMonitorCountersAMD);
+	getproc(PFNGLGETPERFMONITORGROUPSTRINGAMDPROC, glGetPerfMonitorGroupStringAMD);
+	getproc(PFNGLGETPERFMONITORCOUNTERSTRINGAMDPROC, glGetPerfMonitorCounterStringAMD);
+	getproc(PFNGLGETPERFMONITORCOUNTERINFOAMDPROC, glGetPerfMonitorCounterInfoAMD);
+	getproc(PFNGLGENPERFMONITORSAMDPROC, glGenPerfMonitorsAMD);
+	getproc(PFNGLSELECTPERFMONITORCOUNTERSAMDPROC, glSelectPerfMonitorCountersAMD);
+	getproc(PFNGLBEGINPERFMONITORAMDPROC, glBeginPerfMonitorAMD);
+	getproc(PFNGLENDPERFMONITORAMDPROC, glEndPerfMonitorAMD);
+	getproc(PFNGLGETPERFMONITORCOUNTERDATAAMDPROC, glGetPerfMonitorCounterDataAMD);
 
 	/* Query available perf cntrs: */
 	GLint num_groups;
