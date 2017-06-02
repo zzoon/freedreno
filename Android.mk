@@ -458,3 +458,11 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC
 LOCAL_LDLIBS := -lc -ldl -llog -lm
 include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-ubwc2d
+LOCAL_SRC_FILES := tests-2d/test-ubwc2d.c tests-2d/c2d2-shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
