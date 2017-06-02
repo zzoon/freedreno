@@ -1131,14 +1131,7 @@ static unsigned render_mode;
 
 static const char *mode_name(unsigned render_mode)
 {
-	// TODO should probably get this from rnndb..
-	switch(render_mode) {
-	case 1: return "BYPASS";
-	case 2: return "BINNING";
-	case 3: return "GMEM";
-	case 5: return "BLIT2D";
-	default: return "???";
-	}
+	return rnn_enumname(rnn, "render_mode_cmd", render_mode);
 }
 
 /* well, actually query and script..
