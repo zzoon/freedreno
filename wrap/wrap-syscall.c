@@ -967,20 +967,32 @@ static void kgls_ioctl_perfcounter_get_post(int fd,
 		struct kgsl_perfcounter_get *param)
 {
 	char buf[128];
-#ifdef FAKE
-	static struct {
-		uint32_t hi, lo;
-	} cache[10][10];
-	if (cache[param->groupid][param->countable].lo == 0) {
-		static int off = 0x9c; // REG_A4XX_RBBM_PERFCTR_CP_0_LO
-		cache[param->groupid][param->countable].lo = off++;
-		cache[param->groupid][param->countable].hi = off++;
-	}
-	param->offset = cache[param->groupid][param->countable].lo;
-	param->offset_hi = cache[param->groupid][param->countable].hi;
-#endif
+
 	printf("\t\tgroupid:\t%u\n", param->groupid);
 	printf("\t\tcountable:\t%u\n", param->countable);
+#ifdef FAKE
+	int g = param->groupid % 128;
+	int c = param->countable % 128;
+	static struct {
+		uint32_t hi, lo;
+	} cache[128][128];
+	if (cache[g][c].lo == 0) {
+		static int off;
+
+		if (!off) {
+			if (wrap_gpu_id() >= 500) {
+				off = 0x03a0;  // REG_A5XX_RBBM_PERFCTR_CP_0_LO
+			} else {
+				off = 0x9c;    // REG_A4XX_RBBM_PERFCTR_CP_0_LO
+			}
+		}
+
+		cache[g][c].lo = off;
+		cache[g][c].hi = off + 1;
+	}
+	param->offset = cache[g][c].lo;
+	param->offset_hi = cache[g][c].hi;
+#endif
 	printf("\t\toffset_lo:\t0x%x\n", param->offset);
 	printf("\t\toffset_hi:\t0x%x\n", param->offset_hi);
 
