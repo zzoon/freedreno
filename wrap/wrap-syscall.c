@@ -307,12 +307,15 @@ static void dump_buffer(uint64_t gpuaddr)
 }
 
 #ifdef FAKE
-uint32_t alloc_gpuaddr(uint32_t size)
+static int is64b = 0;
+uint64_t alloc_gpuaddr(uint32_t size)
 {
 	// TODO need better scheme to deal w/ deallocation..
 	static uint32_t gpuaddr = 0xc0000000;
 	uint32_t addr = gpuaddr;
 	gpuaddr += size;
+	if (is64b)
+		return ((uint64_t)0x1ffff << 32) | addr;
 	return addr;
 }
 #endif
@@ -361,6 +364,8 @@ int open(const char* path, int flags, ...)
 				printf("need WRAP_GPU_ID/WRAP_GMEM_SIZE!\n");
 				return -1;
 			}
+			if (wrap_gpu_id() >= 500)
+				is64b = 1;
 #endif
 			file_table[ret].is_3d = 1;
 			printf("found kgsl_3d0: %d\n", ret);
