@@ -1230,6 +1230,12 @@ enum state_t {
 	TEX_MIPADDR,  /* a3xx only */
 	SHADER_PROG,
 	SHADER_CONST,
+
+	// image/ssbo state:
+	SSBO_0,
+	SSBO_1,
+	SSBO_2,
+
 	// unknown things, just to hexdumps:
 	UNKNOWN_DWORDS,
 	UNKNOWN_2DWORDS,
@@ -1309,13 +1315,13 @@ a4xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
 		[0xd][0] = { SHADER_COMPUTE,   SHADER_PROG },
 		[0xd][1] = { SHADER_COMPUTE,   SHADER_CONST },
 		// SB4_SSBO (shared across all stages)
-		[0xe][0] = { 0, UNKNOWN_4DWORDS },
-		[0xe][1] = { 0, UNKNOWN_2DWORDS },
-		[0xe][2] = { 0, UNKNOWN_2DWORDS },
+		[0xe][0] = { 0, SSBO_0 },
+		[0xe][1] = { 0, SSBO_1 },
+		[0xe][2] = { 0, SSBO_2 },
 		// SB4_CS_SSBO
-		[0xf][0] = { SHADER_COMPUTE, UNKNOWN_4DWORDS },
-		[0xf][1] = { SHADER_COMPUTE, UNKNOWN_2DWORDS },
-		[0xf][2] = { SHADER_COMPUTE, UNKNOWN_2DWORDS },
+		[0xf][0] = { SHADER_COMPUTE, SSBO_0 },
+		[0xf][1] = { SHADER_COMPUTE, SSBO_1 },
+		[0xf][2] = { SHADER_COMPUTE, SSBO_2 },
 		// unknown things
 		[0x6][2] = { 0, UNKNOWN_DWORDS },
 		[0x7][1] = { 0, UNKNOWN_2DWORDS },
@@ -1478,6 +1484,36 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 				dump_hex(texconst, 12, level+1);
 				texconst += 12;
 			}
+		}
+		break;
+	}
+	case SSBO_0: {
+		uint32_t *ssboconst = (uint32_t *)contents;
+
+		/* TODO a4xx and a5xx might be same: */
+		if ((500 <= gpu_id) && (gpu_id < 600)) {
+			dump_domain(ssboconst, 4, level+2, "A5XX_SSBO_0");
+			dump_hex(ssboconst, 4, level+1);
+		}
+		break;
+	}
+	case SSBO_1: {
+		uint32_t *ssboconst = (uint32_t *)contents;
+
+		/* TODO a4xx and a5xx might be same: */
+		if ((500 <= gpu_id) && (gpu_id < 600)) {
+			dump_domain(ssboconst, 2, level+2, "A5XX_SSBO_1");
+			dump_hex(ssboconst, 2, level+1);
+		}
+		break;
+	}
+	case SSBO_2: {
+		uint32_t *ssboconst = (uint32_t *)contents;
+
+		/* TODO a4xx and a5xx might be same: */
+		if ((500 <= gpu_id) && (gpu_id < 600)) {
+			dump_domain(ssboconst, 2, level+2, "A5XX_SSBO_2");
+			dump_hex(ssboconst, 2, level+1);
 		}
 		break;
 	}
