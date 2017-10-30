@@ -906,6 +906,23 @@ static void print_instr_cat6(instr_t *instr)
 	}
 }
 
+static void print_instr_cat7(instr_t *instr)
+{
+	instr_cat7_t *cat7 = &instr->cat7;
+
+	if (cat7->g)
+		printf(".g");
+	if (cat7->l)
+		printf(".l");
+
+	if (cat7->opc == OPC_FENCE) {
+		if (cat7->r)
+			printf(".r");
+		if (cat7->w)
+			printf(".w");
+	}
+}
+
 /* size of largest OPC field of all the instruction categories: */
 #define NOPC_BITS 6
 
@@ -1071,30 +1088,19 @@ struct opc_info {
 	OPC(6, OPC_LDC,          ldc),
 	OPC(6, OPC_LDLV,         ldlv),
 
+	OPC(7, OPC_BAR,          bar),
+	OPC(7, OPC_FENCE,        fence),
+
 
 #undef OPC
 };
 
-#define GETINFO(instr) (&(opcs[((instr)->opc_cat << NOPC_BITS) | getopc(instr)]))
-
-static uint32_t getopc(instr_t *instr)
-{
-	switch (instr->opc_cat) {
-	case 0:  return instr->cat0.opc;
-	case 1:  return 0;
-	case 2:  return instr->cat2.opc;
-	case 3:  return instr->cat3.opc;
-	case 4:  return instr->cat4.opc;
-	case 5:  return instr->cat5.opc;
-	case 6:  return instr->cat6.opc;
-	default: return 0;
-	}
-}
+#define GETINFO(instr) (&(opcs[((instr)->opc_cat << NOPC_BITS) | instr_opc(instr)]))
 
 static bool print_instr(uint32_t *dwords, int level, int n)
 {
 	instr_t *instr = (instr_t *)dwords;
-	uint32_t opc = getopc(instr);
+	uint32_t opc = instr_opc(instr);
 	const char *name;
 
 	printf("%s%04d[%08xx_%08xx] ", levels[level], n, dwords[1], dwords[0]);
@@ -1115,7 +1121,7 @@ static bool print_instr(uint32_t *dwords, int level, int n)
 
 	if (instr->sync)
 		printf("(sy)");
-	if (instr->ss && (instr->opc_cat <= 4))
+	if (instr->ss && ((instr->opc_cat <= 4) || (instr->opc_cat == 7)))
 		printf("(ss)");
 	if (instr->jmp_tgt)
 		printf("(jp)");
