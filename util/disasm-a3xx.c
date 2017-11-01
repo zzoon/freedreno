@@ -737,8 +737,11 @@ static void print_instr_cat6(instr_t *instr)
 	case OPC_ATOMIC_OR:
 	case OPC_ATOMIC_XOR:
 		ss = cat6->g ? 'g' : 'l';
-		printf(".%c", ss);
+		printf(".%s", cat6->ldgb.typed ? "typed" : "untyped");
+		printf(".%dd", cat6->ldgb.d + 1);
 		printf(".%s", type[cat6->type]);
+		printf(".%d", cat6->ldgb.type_size + 1);
+		printf(".%c", ss);
 		break;
 	default:
 		dst.im = cat6->g && !cat6->dst_off;
@@ -817,7 +820,57 @@ static void print_instr_cat6(instr_t *instr)
 		return;
 	}
 
-	if ((cat6->opc == OPC_LDGB) || is_atomic(cat6->opc)) {
+	if (is_atomic(cat6->opc)) {
+
+		src1.reg = (reg_t)(cat6->ldgb.src1);
+		src1.im  = cat6->ldgb.src1_im;
+		src2.reg = (reg_t)(cat6->ldgb.src2);
+		src2.im  = cat6->ldgb.src2_im;
+		dst.reg  = (reg_t)(cat6->ldgb.dst);
+
+		print_src(&dst);
+		printf(", ");
+		if (ss == 'g') {
+			struct reginfo src3;
+			memset(&src3, 0, sizeof(src3));
+
+			src3.reg = (reg_t)(cat6->ldgb.src3);
+			src3.full = true;
+
+			/* For images, the ".typed" variant is used and src2 is
+			 * the ivecN coordinates, ie ivec2 for 2d.
+			 *
+			 * For SSBOs, the ".untyped" variant is used and src2 is
+			 * a simple dword offset..  src3 appears to be
+			 * uvec2(offset * 4, 0).  Not sure the point of that.
+			 */
+
+			printf("g[%u + ", cat6->ldgb.src_ssbo);
+			print_src(&src2);  /* offset */
+			printf("], ");
+			print_src(&src1);  /* value */
+			printf(", ");
+			print_src(&src3);  /* other offset.. */
+
+			if (debug & PRINT_VERBOSE) {
+				printf(" (pad0=%x, pad3=%x, mustbe0=%x)", cat6->ldgb.pad0,
+						cat6->ldgb.pad3, cat6->ldgb.mustbe0);
+			}
+		} else { /* ss == 'l' */
+			printf("l[");
+			print_src(&src1);  /* simple byte offset */
+			printf("], ");
+			print_src(&src2);  /* value */
+
+			if (debug & PRINT_VERBOSE) {
+				printf(" (src3=%x, pad0=%x, pad3=%x, mustbe0=%x)",
+						cat6->ldgb.src3, cat6->ldgb.pad0,
+						cat6->ldgb.pad3, cat6->ldgb.mustbe0);
+			}
+		}
+
+		return;
+	} else if (cat6->opc == OPC_LDGB) {
 
 		src1.reg = (reg_t)(cat6->ldgb.src1);
 		src1.im  = cat6->ldgb.src1_im;
@@ -831,16 +884,6 @@ static void print_instr_cat6(instr_t *instr)
 		print_src(&src1);
 		printf(", ");
 		print_src(&src2);
-
-		if (is_atomic(cat6->opc)) {
-			struct reginfo src3;
-			memset(&src3, 0, sizeof(src3));
-			src3.reg = (reg_t)(cat6->ldgb.src3);
-			src3.full = true;
-
-			printf(", ");
-			print_src(&src3);
-		}
 
 		if (debug & PRINT_VERBOSE)
 			printf(" (pad0=%x, pad3=%x, mustbe0=%x)", cat6->ldgb.pad0, cat6->ldgb.pad3, cat6->ldgb.mustbe0);
