@@ -628,7 +628,7 @@ typedef struct PACKED {
 	uint32_t pad0     : 15;
 } instr_cat6d_t;
 
-/* ldgb and atomics.. atomics use 3rd src and pad0=1, pad3=3.  For
+/* ldgb and atomics.. atomics use 3rd src and pad0=1, pad3=1.  For
  * ldgb pad0=0, pad3=2
  *
  * note: we can probably merge these..
@@ -650,7 +650,8 @@ typedef struct PACKED {
 	uint32_t mustbe0  : 1;
 	uint32_t src_ssbo : 8;
 	uint32_t pad2     : 3;  // type
-	uint32_t pad3     : 2;
+	uint32_t g        : 1;
+	uint32_t pad3     : 1;
 	uint32_t pad4     : 10; // opc/jmp_tgt/sync/opc_cat
 } instr_cat6ldgb_t;
 
@@ -708,7 +709,7 @@ typedef struct PACKED {
 
 	/* dword1: */
 	uint32_t pad2     : 12;
-	uint32_t ss       : 1;
+	uint32_t ss       : 1;  /* maybe in the encoding, but blob only uses (sy) */
 	uint32_t pad3     : 6;
 	uint32_t w        : 1;  /* write */
 	uint32_t r        : 1;  /* read */
