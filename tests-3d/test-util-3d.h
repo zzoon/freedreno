@@ -57,6 +57,7 @@
 		GLenum err; \
 		DEBUG_MSG(">>> %s", #x); \
 		RD_WRITE_SECTION(RD_CMD, #x, strlen(#x)); \
+		fflush(stdout); \
 		x; \
 		err = glGetError(); \
 		if (err != GL_NO_ERROR) { \
@@ -64,6 +65,8 @@
 			exit(-1); \
 		} \
 		DEBUG_MSG("<<< %s: succeeded", #x); \
+		fflush(stdout); \
+		usleep(1000); \
 	} while (0)
 
 #define ENUM(x) case x: return #x
@@ -334,6 +337,24 @@ textypename(GLenum type)
 	ENUM(GL_TEXTURE_CUBE_MAP);
 	}
 	ERROR_MSG("invalid type: %04x", type);
+	exit(1);
+	return NULL;
+}
+
+static inline const char *
+compname(GLenum compf)
+{
+	switch (compf) {
+	ENUM(GL_NEVER);
+	ENUM(GL_LESS);
+	ENUM(GL_EQUAL);
+	ENUM(GL_LEQUAL);
+	ENUM(GL_GREATER);
+	ENUM(GL_NOTEQUAL);
+	ENUM(GL_GEQUAL);
+	ENUM(GL_ALWAYS);
+	}
+	ERROR_MSG("invalid func: %04x", compf);
 	exit(1);
 	return NULL;
 }
