@@ -240,12 +240,34 @@ static const char *shader_source_fmt =
 	"}                                                                 \n"
 	"\n";
 
-static const char * shader_source(
+static const char *shader_source_atomic_fmt =
+	"#version 310 es                                                   \n"
+	"#extension GL_EXT_texture_buffer : enable                         \n"
+	"#extension GL_OES_shader_image_atomic : enable                    \n"
+	"                                                                  \n"
+	"precision highp float;                                            \n"
+	"precision highp int;                                              \n"
+	"                                                                  \n"
+	"layout(local_size_x=4, local_size_y=2, local_size_z=1) in;        \n"
+	"                                                                  \n"
+	"uniform highp layout(%s) %s src;                                  \n"
+	"uniform highp layout(%s) writeonly %s dst;                        \n"
+	"/*uniform %s dcoord;*/                                            \n"
+	"uniform %s scoord;                                                \n"
+	"                                                                  \n"
+	"void main(void) {                                                 \n"
+	"    uint index = gl_LocalInvocationIndex;                         \n"
+	"    imageAtomicAdd(src, scoord + %s(index), %s(7));               \n"
+	"}                                                                 \n"
+	"\n";
+
+static const char * shader_source(int atomic,
 		const char *src_fmt, const char *src_type, const char *src_coord,
 		const char *dst_fmt, const char *dst_type, const char *dst_coord)
 {
 	char *source;
-	asprintf(&source, shader_source_fmt,
+	asprintf(&source,
+			atomic ? shader_source_atomic_fmt : shader_source_fmt,
 			src_fmt, src_type,
 			dst_fmt, dst_type,
 			src_coord, dst_coord,
@@ -300,16 +322,16 @@ static const struct {
 	ENUM(GL_MAX_COMPUTE_SHARED_MEMORY_SIZE),
 };
 
-static void test_image(int w, int h, int d,
+static void test_image(int atomic, int w, int h, int d,
 		const char *src_fmt, const char *src_type, const char *src_coord,
 		const char *dst_fmt, const char *dst_type, const char *dst_coord)
 {
 	int unit = 0;
 
-	RD_START("image", "w=%d, h=%d, d=%d, "
+	RD_START("image", "atomic=%d, w=%d, h=%d, d=%d, "
 			"src_fmt=%s, src_type=%s, src_coord=%s, "
 			"dst_fmt=%s, dst_type=%s, dst_coord=%s",
-			w, h, d,
+			atomic, w, h, d,
 			src_fmt, src_type, src_coord,
 			dst_fmt, dst_type, dst_coord);
 
@@ -354,7 +376,7 @@ static void test_image(int w, int h, int d,
 
 	/* setup a compute shader */
 
-	GLuint program = get_compute_program(shader_source(
+	GLuint program = get_compute_program(shader_source(atomic,
 			src_fmt, src_type, src_coord, dst_fmt, dst_type, dst_coord));
 
 	link_program(program);
@@ -381,38 +403,42 @@ int main(int argc, char *argv[])
 	TEST_START();
 
 	/* 0 */
-	TEST(test_image(  16,   16,   0, "rgba32ui",    "uimage2D", "ivec2", "rgba32ui",    "uimage2D", "ivec2"));
-	TEST(test_image(  16,   16,   0, "rgba32i",     "iimage2D", "ivec2", "rgba32i",     "iimage2D", "ivec2"));
-	TEST(test_image(  16,   16,   0, "rgba32f",     "image2D",  "ivec2", "rgba32f",     "image2D",  "ivec2"));
-	TEST(test_image(  16,   16,  16, "rgba32f",     "image3D",  "ivec3", "rgba32f",     "image3D",  "ivec3"));
-	TEST(test_image(  16,   16,   0, "rgba8",       "image2D",  "ivec2", "rgba32f",     "image2D",  "ivec2"));
-	TEST(test_image(  16,   16,   0, "rgba32f",     "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(  16,   16,   0, "rgba8_snorm", "image2D",  "ivec2", "rgba32f",     "image2D",  "ivec2"));
-	TEST(test_image(  16,   16,   0, "rgba32f",     "image2D",  "ivec2", "rgba8_snorm", "image2D",  "ivec2"));
+	TEST(test_image(0,  16,   16,   0, "rgba32ui",    "uimage2D", "ivec2", "rgba32ui",    "uimage2D", "ivec2"));
+	TEST(test_image(0,  16,   16,   0, "rgba32i",     "iimage2D", "ivec2", "rgba32i",     "iimage2D", "ivec2"));
+	TEST(test_image(0,  16,   16,   0, "rgba32f",     "image2D",  "ivec2", "rgba32f",     "image2D",  "ivec2"));
+	TEST(test_image(0,  16,   16,  16, "rgba32f",     "image3D",  "ivec3", "rgba32f",     "image3D",  "ivec3"));
+	TEST(test_image(0,  16,   16,   0, "rgba8",       "image2D",  "ivec2", "rgba32f",     "image2D",  "ivec2"));
+	TEST(test_image(0,  16,   16,   0, "rgba32f",     "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,  16,   16,   0, "rgba8_snorm", "image2D",  "ivec2", "rgba32f",     "image2D",  "ivec2"));
+	TEST(test_image(0,  16,   16,   0, "rgba32f",     "image2D",  "ivec2", "rgba8_snorm", "image2D",  "ivec2"));
 
 	/* 8 */
-	TEST(test_image(   1,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(  16,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(  32,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(  64,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(  65,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(   1,   16,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(   1,   32,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
-	TEST(test_image(   1,   64,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,   1,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,  16,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,  32,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,  64,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,  65,    1,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,   1,   16,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,   1,   32,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
+	TEST(test_image(0,   1,   64,   0, "rgba8",       "image2D",  "ivec2", "rgba8",       "image2D",  "ivec2"));
 
 	/* 16 */
-	TEST(test_image(   1,    1,   1, "rgba8",       "image3D",  "ivec3", "rgba8",       "image3D",  "ivec3"));
-	TEST(test_image(   1,    1,  16, "rgba8",       "image3D",  "ivec3", "rgba8",       "image3D",  "ivec3"));
-	TEST(test_image(  16,   16,  16, "rgba8",       "image3D",  "ivec3", "rgba8",       "image3D",  "ivec3"));
-	TEST(test_image(  65,  128,   0, "r32ui",       "uimage2D", "ivec2", "r32ui",       "uimage2D", "ivec2"));
-	TEST(test_image(  65,  128,   0, "rgba32ui",    "uimage2D", "ivec2", "rgba32ui",    "uimage2D", "ivec2"));
-	TEST(test_image(  65,  128,   0, "rgba16ui",    "uimage2D", "ivec2", "rgba16ui",    "uimage2D", "ivec2"));
-	TEST(test_image(  65,  128,   0, "rgba8ui",     "uimage2D", "ivec2", "rgba8ui",     "uimage2D", "ivec2"));
-	TEST(test_image(  65,  128,  65, "rgba8ui",     "uimage3D", "ivec3", "rgba8ui",     "uimage3D", "ivec3"));
+	TEST(test_image(0,   1,    1,   1, "rgba8",       "image3D",  "ivec3", "rgba8",       "image3D",  "ivec3"));
+	TEST(test_image(0,   1,    1,  16, "rgba8",       "image3D",  "ivec3", "rgba8",       "image3D",  "ivec3"));
+	TEST(test_image(0,  16,   16,  16, "rgba8",       "image3D",  "ivec3", "rgba8",       "image3D",  "ivec3"));
+	TEST(test_image(0,  65,  128,   0, "r32ui",       "uimage2D", "ivec2", "r32ui",       "uimage2D", "ivec2"));
+	TEST(test_image(0,  65,  128,   0, "rgba32ui",    "uimage2D", "ivec2", "rgba32ui",    "uimage2D", "ivec2"));
+	TEST(test_image(0,  65,  128,   0, "rgba16ui",    "uimage2D", "ivec2", "rgba16ui",    "uimage2D", "ivec2"));
+	TEST(test_image(0,  65,  128,   0, "rgba8ui",     "uimage2D", "ivec2", "rgba8ui",     "uimage2D", "ivec2"));
+	TEST(test_image(0,  65,  128,  65, "rgba8ui",     "uimage3D", "ivec3", "rgba8ui",     "uimage3D", "ivec3"));
 
 	/* 24 */
-	TEST(test_image(8192,    0,   0, "r32ui", "uimageBuffer", "int", "r32ui", "uimageBuffer", "int"));
-//	TEST(test_image( 256,    0,   0, "r32ui", "uimage1D",     "int", "r32ui", "uimage1D",     "int"));
+	TEST(test_image(0, 8192,   0,   0, "r32ui", "uimageBuffer", "int",  "r32ui", "uimageBuffer", "int"));
+	TEST(test_image(1, 8192,   0,   0, "r32ui", "uimageBuffer", "uint", "r32ui", "uimageBuffer", "int"));
+	TEST(test_image(0,   65,  22,   0, "r32ui", "uimage2D",   "ivec2",  "r32ui", "uimage2D",   "ivec2"));
+	TEST(test_image(1,   65,  22,   0, "r32ui", "uimage2D",    "uint",  "r32ui", "uimage2D",   "ivec2"));
+	TEST(test_image(0,   65,  22,  11, "r32ui", "uimage3D",   "ivec3",  "r32ui", "uimage3D",   "ivec3"));
+	TEST(test_image(1,   65,  22,  11, "r32ui", "uimage3D",    "uint",  "r32ui", "uimage3D",   "ivec3"));
 
 	TEST_END();
 
