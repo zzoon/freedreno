@@ -710,7 +710,9 @@ static void print_instr_cat6(instr_t *instr)
 
 	switch (cat6->opc) {
 	case OPC_PREFETCH:
+		break;
 	case OPC_RESINFO:
+		printf(".%dd", cat6->ldgb.d + 1);
 		break;
 	case OPC_LDGB:
 		printf(".%s", cat6->ldgb.typed ? "typed" : "untyped");
@@ -844,13 +846,12 @@ static void print_instr_cat6(instr_t *instr)
 			 * a simple dword offset..  src3 appears to be
 			 * uvec2(offset * 4, 0).  Not sure the point of that.
 			 */
-
-			printf("g[%u + ", cat6->ldgb.src_ssbo);
-			print_src(&src2);  /* offset */
-			printf("], ");
+			printf("g[%u], ", cat6->ldgb.src_ssbo);
 			print_src(&src1);  /* value */
 			printf(", ");
-			print_src(&src3);  /* other offset.. */
+			print_src(&src2);  /* offset/coords */
+			printf(", ");
+			print_src(&src3);  /* 64b byte offset.. */
 
 			if (debug & PRINT_VERBOSE) {
 				printf(" (pad0=%x, pad3=%x, mustbe0=%x)", cat6->ldgb.pad0,
@@ -868,6 +869,14 @@ static void print_instr_cat6(instr_t *instr)
 						cat6->ldgb.pad3, cat6->ldgb.mustbe0);
 			}
 		}
+
+		return;
+	} else if (cat6->opc == OPC_RESINFO) {
+		dst.reg  = (reg_t)(cat6->ldgb.dst);
+
+		print_src(&dst);
+		printf(", ");
+		printf("g[%u]", cat6->ldgb.src_ssbo);
 
 		return;
 	} else if (cat6->opc == OPC_LDGB) {
