@@ -183,8 +183,34 @@ static void test_compute(int x, int y, int z, int ngroup, const char *id)
 	link_program(program);
 
 	/* dispatch computation */
-	PFNGLDISPATCHCOMPUTEPROC glDispatchCompute = eglGetProcAddress("glDispatchCompute");
-	GCHK(glDispatchCompute(1 * ngroup, 2 * ngroup, 3 * ngroup));
+	if (ngroup < 0) {
+		/* indirect dispatch */
+		int cnt = -ngroup;
+		PFNGLDISPATCHCOMPUTEINDIRECTPROC glDispatchComputeIndirect =
+				eglGetProcAddress("glDispatchComputeIndirect");
+		struct {
+			uint32_t num_groups_x;
+			uint32_t num_groups_y;
+			uint32_t num_groups_z;
+		} data[0x1000 * cnt];
+		GLuint buffer;
+
+		for (i = 0; i < 3 * cnt; i++) {
+			data[i].num_groups_x = i * 1;
+			data[i].num_groups_y = i * 2;
+			data[i].num_groups_z = i * 3;
+		}
+
+		GCHK(glGenBuffers(1, &buffer));
+		GCHK(glBindBuffer(GL_DISPATCH_INDIRECT_BUFFER, buffer));
+		GCHK(glBufferData(GL_DISPATCH_INDIRECT_BUFFER, sizeof(data), data, GL_STATIC_DRAW));
+
+		GCHK(glDispatchComputeIndirect((GLintptr)(cnt * 4)));
+	} else {
+		/* direct dispatch */
+		PFNGLDISPATCHCOMPUTEPROC glDispatchCompute = eglGetProcAddress("glDispatchCompute");
+		GCHK(glDispatchCompute(1 * ngroup, 2 * ngroup, 3 * ngroup));
+	}
 
 	DEBUG_MSG("Compute shader dispatched and finished successfully\n");
 
@@ -200,14 +226,18 @@ int main(int argc, char *argv[])
 	TEST(test_compute(   4,    2,   1, 1, "gl_NumWorkGroups + uvec3(100.0 * texture(uTex2D0, vec2(gl_GlobalInvocationID.xy)).xyz)"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_NumWorkGroups + uvec3(imageLoad(src0, ivec2(gl_GlobalInvocationID.xy)).xyz)"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_NumWorkGroups + uvec3(imageLoad(src0, ivec2(gl_GlobalInvocationID.xy)).xyz) + uvec3(imageLoad(src1, ivec2(gl_GlobalInvocationID.xy)).xyz)"));
+	TEST(test_compute(   4,    2,   1, 1, "uvec3(imageSize(src1).xyy)"));
+	TEST(test_compute(   4,    2,   1, 1, "uvec3(In.length())"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_NumWorkGroups"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_WorkGroupID"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_LocalInvocationID"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_GlobalInvocationID"));
 	TEST(test_compute(   4,    2,   1, 1, "gl_LocalInvocationIndex"));
 	TEST(test_compute(   2,    6,   2, 1, "gl_WorkGroupID"));
-	TEST(test_compute( 256,  256,  64, 1, "gl_WorkGroupID"));
-	TEST(test_compute( 256,  256,  64, 7, "gl_WorkGroupID"));
+	TEST(test_compute( 256,  256,  64,  1, "gl_NumWorkGroups"));
+	TEST(test_compute( 256,  256,  64,  7, "gl_NumWorkGroups"));
+	TEST(test_compute( 256,  256,  64, -1, "gl_NumWorkGroups"));
+	TEST(test_compute( 256,  256,  64, -7, "gl_NumWorkGroups"));
 	TEST_END();
 
 	return 0;
