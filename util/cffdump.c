@@ -1704,12 +1704,8 @@ static void cp_event_write(uint32_t *dwords, uint32_t sizedwords, int level)
 		char eventname[64];
 		snprintf(eventname, sizeof(eventname), "EVENT:%s", name);
 		if (!strcmp(name, "BLIT")) {
-			bool saved_summary = summary;
-			summary = false;
 			do_query(eventname, 0);
 			dump_register_summary(level);
-			draw_count++;
-			summary = saved_summary;
 		}
 	}
 }
@@ -1717,6 +1713,8 @@ static void cp_event_write(uint32_t *dwords, uint32_t sizedwords, int level)
 static void dump_register_summary(int level)
 {
 	uint32_t i;
+	bool saved_summary = summary;
+	summary = false;
 
 	/* dump current state of registers: */
 	printl(2, "%sdraw[%i] register values\n", levels[level], draw_count);
@@ -1746,6 +1744,9 @@ static void dump_register_summary(int level)
 	}
 
 	clear_rewritten();
+
+	draw_count++;
+	summary = saved_summary;
 }
 
 static uint32_t draw_indx_common(uint32_t *dwords, int level)
@@ -1776,11 +1777,8 @@ static uint32_t draw_indx_common(uint32_t *dwords, int level)
 static void cp_draw_indx(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	uint32_t num_indices = draw_indx_common(dwords, level);
-	bool saved_summary = summary;
 
 	assert(!is_64b());
-
-	summary = false;
 
 	/* if we have an index buffer, dump that: */
 	if (sizedwords == 5) {
@@ -1816,9 +1814,6 @@ static void cp_draw_indx(uint32_t *dwords, uint32_t sizedwords, int level)
 	if (num_indices > 0)
 		dump_register_summary(level);
 
-	draw_count++;
-	summary = saved_summary;
-
 	needs_wfi = true;
 }
 
@@ -1829,11 +1824,8 @@ static void cp_draw_indx_2(uint32_t *dwords, uint32_t sizedwords, int level)
 			((dwords[1] >> 11) & 1) | ((dwords[1] >> 12) & 2);
 	void *ptr = &dwords[3];
 	int sz = 0;
-	bool saved_summary = summary;
 
 	assert(!is_64b());
-
-	summary = false;
 
 	/* CP_DRAW_INDX_2 has embedded/inline idx buffer: */
 	if (!quiet(2)) {
@@ -1862,20 +1854,14 @@ static void cp_draw_indx_2(uint32_t *dwords, uint32_t sizedwords, int level)
 	/* don't bother dumping registers for the dummy draw_indx's.. */
 	if (num_indices > 0)
 		dump_register_summary(level);
-
-	draw_count++;
-	summary = saved_summary;
 }
 
 static void cp_draw_indx_offset(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	uint32_t num_indices = dwords[2];
 	uint32_t prim_type = dwords[0] & 0x1f;
-	bool saved_summary = summary;
 
 	do_query(rnn_enumname(rnn, "pc_di_primtype", prim_type), num_indices);
-
-	summary = false;
 
 	if ((gpu_id >= 500) && !quiet(2)) {
 		printf("%smode: %s\n", levels[level], mode_name(render_mode));
@@ -1884,23 +1870,12 @@ static void cp_draw_indx_offset(uint32_t *dwords, uint32_t sizedwords, int level
 	/* don't bother dumping registers for the dummy draw_indx's.. */
 	if (num_indices > 0)
 		dump_register_summary(level);
-
-	draw_count++;
-	summary = saved_summary;
 }
 
 static void cp_run_cl(uint32_t *dwords, uint32_t sizedwords, int level)
 {
-	bool saved_summary = summary;
-
 	do_query("COMPUTE", 1);
-
-	summary = false;
-
 	dump_register_summary(level);
-
-	draw_count++;
-	summary = saved_summary;
 }
 
 static void cp_nop(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -2053,14 +2028,8 @@ static void cp_set_draw_state(uint32_t *dwords, uint32_t sizedwords, int level)
 /* execute compute shader */
 static void cp_exec_cs(uint32_t *dwords, uint32_t sizedwords, int level)
 {
-	bool saved_summary = summary;
-	summary = false;
-
 	do_query("compute", 0);
 	dump_register_summary(level);
-
-	draw_count++;
-	summary = saved_summary;
 }
 
 static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -2133,14 +2102,8 @@ static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
 
 static void cp_blit(uint32_t *dwords, uint32_t sizedwords, int level)
 {
-	bool saved_summary = summary;
-	summary = false;
-
 	do_query(rnn_enumname(rnn, "cp_blit_cmd", dwords[0]), 0);
 	dump_register_summary(level);
-
-	draw_count++;
-	summary = saved_summary;
 }
 
 static void cp_context_reg_bunch(uint32_t *dwords, uint32_t sizedwords, int level)
