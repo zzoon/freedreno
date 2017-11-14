@@ -21,6 +21,7 @@
  * SOFTWARE.
  */
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -272,7 +273,6 @@ static void dump_hex(uint32_t *dwords, uint32_t sizedwords, int level)
 	int lastzero = 1;
 	for (i = 0; i < sizedwords; i += 8) {
 		int zero = 1;
-		int skip;
 
 		/* always show first row: */
 		if (i == 0)
@@ -527,11 +527,11 @@ static void reg_dump_scratch5(const char *name, uint32_t dword, int level)
 			reg_val(REG_A5XX_CP_SCRATCH_REG(7)));
 }
 
-static void dump_gpuaddr_size(uint64_t gpuaddr, int level, int sizedwords)
+static void dump_gpuaddr_size(uint64_t gpuaddr, int level, int sizedwords, int quietlvl)
 {
 	void *buf;
 
-	if (quiet(3))
+	if (quiet(quietlvl))
 		return;
 
 	buf = hostptr(gpuaddr);
@@ -542,7 +542,7 @@ static void dump_gpuaddr_size(uint64_t gpuaddr, int level, int sizedwords)
 
 static void dump_gpuaddr(uint64_t gpuaddr, int level)
 {
-	dump_gpuaddr_size(gpuaddr, level, 64);
+	dump_gpuaddr_size(gpuaddr, level, 64, 3);
 }
 
 static void reg_dump_gpuaddr(const char *name, uint32_t dword, int level)
@@ -1479,7 +1479,7 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 				dump_domain(texconst, 12, level+2, "A5XX_TEX_CONST");
 				if (dump_textures) {
 					uint64_t addr = (((uint64_t)texconst[5] & 0x1ffff) << 32) | texconst[4];
-					dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4);
+					dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4, 3);
 				}
 				dump_hex(texconst, 12, level+1);
 				texconst += 12;
@@ -1524,7 +1524,7 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 			}
 			if (dump_textures) {
 				uint64_t addr = (((uint64_t)ssboconst[1] & 0x1ffff) << 32) | ssboconst[0];
-				dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4);
+				dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4, 3);
 			}
 			ssboconst += 2;
 		}
@@ -2032,6 +2032,24 @@ static void cp_exec_cs(uint32_t *dwords, uint32_t sizedwords, int level)
 	dump_register_summary(level);
 }
 
+static void cp_exec_cs_indirect(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	uint64_t addr;
+
+	if (is_64b()) {
+		addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
+	} else {
+		// ???
+		addr = 0;
+	}
+
+	printl(3, "%saddr: %016llx\n", levels[level], addr);
+	dump_gpuaddr_size(addr, level, 0x10, 2);
+
+	do_query("compute", 0);
+	dump_register_summary(level);
+}
+
 static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	uint64_t addr;
@@ -2185,6 +2203,7 @@ static const struct {
 		CP(SET_DRAW_STATE, cp_set_draw_state),
 		CP(DRAW_INDX_OFFSET, cp_draw_indx_offset),
 		CP(EXEC_CS, cp_exec_cs),
+		CP(EXEC_CS_INDIRECT, cp_exec_cs_indirect),
 
 		/* for a5xx */
 		CP(SET_RENDER_MODE, cp_set_render_mode),
