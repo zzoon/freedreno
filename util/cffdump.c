@@ -1522,6 +1522,10 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 				dump_domain(ssboconst, 2, level+2, "A5XX_SSBO_2");
 				dump_hex(ssboconst, 2, level+1);
 			}
+			if (dump_textures) {
+				uint64_t addr = (((uint64_t)ssboconst[1] & 0x1ffff) << 32) | ssboconst[0];
+				dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4);
+			}
 			ssboconst += 2;
 		}
 		break;
