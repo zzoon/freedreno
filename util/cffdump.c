@@ -1872,6 +1872,43 @@ static void cp_draw_indx_offset(uint32_t *dwords, uint32_t sizedwords, int level
 		dump_register_summary(level);
 }
 
+static void cp_draw_indx_indirect(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	uint32_t prim_type = dwords[0] & 0x1f;
+	uint64_t addr;
+
+	do_query(rnn_enumname(rnn, "pc_di_primtype", prim_type), 0);
+
+	if ((gpu_id >= 500) && !quiet(2)) {
+		printf("%smode: %s\n", levels[level], mode_name(render_mode));
+	}
+
+	addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
+	dump_gpuaddr_size(addr, level, 0x10, 2);
+
+	addr = (((uint64_t)dwords[5] & 0x1ffff) << 32) | dwords[4];
+	dump_gpuaddr_size(addr, level, 0x10, 2);
+
+	dump_register_summary(level);
+}
+
+static void cp_draw_indirect(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	uint32_t prim_type = dwords[0] & 0x1f;
+	uint64_t addr;
+
+	do_query(rnn_enumname(rnn, "pc_di_primtype", prim_type), 0);
+
+	if ((gpu_id >= 500) && !quiet(2)) {
+		printf("%smode: %s\n", levels[level], mode_name(render_mode));
+	}
+
+	addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
+	dump_gpuaddr_size(addr, level, 0x10, 2);
+
+	dump_register_summary(level);
+}
+
 static void cp_run_cl(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	do_query("COMPUTE", 1);
@@ -2209,6 +2246,8 @@ static const struct {
 		CP(SET_RENDER_MODE, cp_set_render_mode),
 		CP(BLIT, cp_blit),
 		CP(CONTEXT_REG_BUNCH, cp_context_reg_bunch),
+		CP(DRAW_INDIRECT, cp_draw_indirect),
+		CP(DRAW_INDX_INDIRECT, cp_draw_indx_indirect),
 };
 
 
