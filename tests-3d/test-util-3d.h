@@ -115,6 +115,12 @@ typename(GLenum type)
 #ifdef GL_UNSIGNED_INT_5_9_9_9_REV
 	ENUM(GL_UNSIGNED_INT_5_9_9_9_REV);
 #endif
+#ifdef GL_UNSIGNED_INT_24_8
+	ENUM(GL_UNSIGNED_INT_24_8);
+#endif
+#ifdef GL_FLOAT_32_UNSIGNED_INT_24_8_REV
+	ENUM(GL_FLOAT_32_UNSIGNED_INT_24_8_REV);
+#endif
 	}
 	ERROR_MSG("invalid type: %04x", type);
 	exit(1);
@@ -316,6 +322,24 @@ formatname(GLenum format)
 #endif
 #ifdef GL_R8_SNORM
 	ENUM(GL_R8_SNORM);
+#endif
+#ifdef GL_DEPTH_COMPONENT16
+	ENUM(GL_DEPTH_COMPONENT16);
+#endif
+#ifdef GL_DEPTH_COMPONENT24
+	ENUM(GL_DEPTH_COMPONENT24);
+#endif
+#ifdef GL_DEPTH_COMPONENT32F
+	ENUM(GL_DEPTH_COMPONENT32F);
+#endif
+#ifdef GL_DEPTH24_STENCIL8
+	ENUM(GL_DEPTH24_STENCIL8);
+#endif
+#ifdef GL_DEPTH32F_STENCIL8
+	ENUM(GL_DEPTH32F_STENCIL8);
+#endif
+#ifdef GL_DEPTH_STENCIL
+	ENUM(GL_DEPTH_STENCIL);
 #endif
 	}
 	ERROR_MSG("invalid format: %04x", format);
