@@ -83,6 +83,10 @@ static void init(struct rnn *rnn, char *file, char *domain)
 		fprintf(stderr, "Could not find domain %s in %s\n", domain, file);
 	}
 	rnn->variant = domain;
+
+	rnndec_varadd(rnn->vc, "chip", domain);
+	if (rnn->vc != rnn->vc_nocolor)
+		rnndec_varadd(rnn->vc_nocolor, "chip", domain);
 }
 
 void rnn_load(struct rnn *rnn, const char *gpuname)

@@ -1884,10 +1884,16 @@ static void cp_draw_indx_indirect(uint32_t *dwords, uint32_t sizedwords, int lev
 		printf("%smode: %s\n", levels[level], mode_name(render_mode));
 	}
 
-	addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
+	if (is_64b())
+		addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
+	else
+		addr = dwords[1];
 	dump_gpuaddr_size(addr, level, 0x10, 2);
 
-	addr = (((uint64_t)dwords[5] & 0x1ffff) << 32) | dwords[4];
+	if (is_64b())
+		addr = (((uint64_t)dwords[5] & 0x1ffff) << 32) | dwords[4];
+	else
+		addr = dwords[3];
 	dump_gpuaddr_size(addr, level, 0x10, 2);
 
 	dump_register_summary(level);
@@ -2077,8 +2083,7 @@ static void cp_exec_cs_indirect(uint32_t *dwords, uint32_t sizedwords, int level
 	if (is_64b()) {
 		addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
 	} else {
-		// ???
-		addr = 0;
+		addr = dwords[1];
 	}
 
 	printl(3, "%saddr: %016llx\n", levels[level], addr);
