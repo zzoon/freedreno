@@ -764,6 +764,7 @@ static struct {
 		REG(SP_GS_OBJ_START, reg_disasm_gpuaddr),
 		REG(SP_HS_OBJ_START, reg_disasm_gpuaddr),
 		REG(SP_DS_OBJ_START, reg_disasm_gpuaddr),
+		REG(SP_CS_OBJ_START, reg_disasm_gpuaddr),
 		REG(VFD_FETCH[0].INSTR_0, reg_vfd_fetch_instr_0_x),
 		REG(VFD_FETCH[0].INSTR_1, reg_vfd_fetch_instr_1_x),
 		REG(VFD_FETCH[0x1].INSTR_0, reg_vfd_fetch_instr_0_x),
