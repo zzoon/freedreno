@@ -1492,12 +1492,12 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 		uint32_t *ssboconst = (uint32_t *)contents;
 
 		for (i = 0; i < num_unit; i++) {
-			/* TODO a4xx and a5xx might be same: */
-			if ((500 <= gpu_id) && (gpu_id < 600)) {
+			if (400 <= gpu_id && gpu_id < 500)
+				dump_domain(ssboconst, 4, level+2, "A4XX_SSBO_0");
+			else if (500 <= gpu_id && gpu_id < 600)
 				dump_domain(ssboconst, 4, level+2, "A5XX_SSBO_0");
-				dump_hex(ssboconst, 4, level+1);
-				ssboconst += 4;
-			}
+			dump_hex(ssboconst, 4, level+1);
+			ssboconst += 4;
 		}
 		break;
 	}
@@ -1505,12 +1505,12 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 		uint32_t *ssboconst = (uint32_t *)contents;
 
 		for (i = 0; i < num_unit; i++) {
-			/* TODO a4xx and a5xx might be same: */
-			if ((500 <= gpu_id) && (gpu_id < 600)) {
+			if (400 <= gpu_id && gpu_id < 500)
+				dump_domain(ssboconst, 2, level+2, "A4XX_SSBO_1");
+			else if (500 <= gpu_id && gpu_id < 600)
 				dump_domain(ssboconst, 2, level+2, "A5XX_SSBO_1");
-				dump_hex(ssboconst, 2, level+1);
-				ssboconst += 2;
-			}
+			dump_hex(ssboconst, 2, level+1);
+			ssboconst += 2;
 		}
 		break;
 	}
