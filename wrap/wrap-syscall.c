@@ -321,6 +321,33 @@ uint64_t alloc_gpuaddr(uint32_t size)
 #endif
 
 /*****************************************************************************/
+static int install_fd(const char *path, int fd)
+{
+	assert(fd < ARRAY_SIZE(file_table));
+	if (!strcmp(path, "/dev/kgsl-3d0")) {
+#ifdef FAKE
+		if (!(wrap_gpu_id() && wrap_gmem_size())) {
+			printf("need WRAP_GPU_ID/WRAP_GMEM_SIZE!\n");
+			return -1;
+		}
+		if (wrap_gpu_id() >= 500)
+			is64b = 1;
+		file_table[fd].is_emulated = 1;
+#endif
+		file_table[fd].is_3d = 1;
+		printf("found kgsl_3d0: %d\n", fd);
+	} else if (!strcmp(path, "/dev/kgsl-2d0")) {
+		file_table[fd].is_2d = 1;
+		printf("found kgsl_2d0: %d\n", fd);
+	} else if (!strcmp(path, "/dev/kgsl-2d1")) {
+		file_table[fd].is_2d = 1;
+		printf("found kgsl_2d1: %d\n", fd);
+	} else if (strstr(path, "/dev/")) {
+		printf("#### missing device, path: %s: %d\n", path, fd);
+	}
+
+	return fd;
+}
 
 int open(const char* path, int flags, ...)
 {
@@ -357,27 +384,7 @@ int open(const char* path, int flags, ...)
 	LOCK();
 
 	if (ret != -1) {
-		assert(ret < ARRAY_SIZE(file_table));
-		if (!strcmp(path, "/dev/kgsl-3d0")) {
-#ifdef FAKE
-			if (!(wrap_gpu_id() && wrap_gmem_size())) {
-				printf("need WRAP_GPU_ID/WRAP_GMEM_SIZE!\n");
-				return -1;
-			}
-			if (wrap_gpu_id() >= 500)
-				is64b = 1;
-#endif
-			file_table[ret].is_3d = 1;
-			printf("found kgsl_3d0: %d\n", ret);
-		} else if (!strcmp(path, "/dev/kgsl-2d0")) {
-			file_table[ret].is_2d = 1;
-			printf("found kgsl_2d0: %d\n", ret);
-		} else if (!strcmp(path, "/dev/kgsl-2d1")) {
-			file_table[ret].is_2d = 1;
-			printf("found kgsl_2d1: %d\n", ret);
-		} else if (strstr(path, "/dev/")) {
-			printf("#### missing device, path: %s: %d\n", path, ret);
-		}
+		ret = install_fd(path, ret);
 	}
 
 	UNLOCK();
@@ -1223,6 +1230,22 @@ int ioctl(int fd, int request, ...)
 	}
 
 	LOCK();
+
+	if (!get_kgsl_info(fd)) {
+		char path[64];
+		char buf[256];
+		int ret;
+
+		sprintf(path, "/proc/self/fd/%d", fd);
+
+		ret = readlink(path, buf, sizeof(buf));
+		if (ret > 0) {
+			buf[ret] = '\0';
+			ret = install_fd(buf, fd);
+			if (ret)
+				return ret;
+		}
+	}
 
 	if (get_kgsl_info(fd))
 		kgsl_ioctl_pre(fd, request, ptr);
