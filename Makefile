@@ -143,3 +143,9 @@ zdump: zdump.c
 
 fwdump: fwdump.c envytools/rnn/librnn.a envytools/util/libenvyutil.a
 	gcc -g $(CFLAGS) -Wall -Wno-packed-bitfield-compat -I. -Ienvytools/include $^ -lxml2 -o $@
+
+fwdump5: fwdump5.c envytools/rnn/librnn.a envytools/util/libenvyutil.a
+	gcc -g $(CFLAGS) -Wall -Wno-packed-bitfield-compat -I. -Ienvytools/include $^ -lxml2 -o $@
+
+asm5: asm5.c envytools/rnn/librnn.a envytools/util/libenvyutil.a
+	gcc -g $(CFLAGS) -Wall -Wno-packed-bitfield-compat -I. -Ienvytools/include $^ -lxml2 -o $@
