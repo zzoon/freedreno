@@ -159,7 +159,7 @@ static struct {
 	regmask_t cnst;     /* used consts */
 } regs;
 
-static void print_regs(regmask_t *regmask, bool full)
+static int print_regs(regmask_t *regmask, bool full)
 {
 	int num, max = 0, cnt = 0;
 	int first, last;
@@ -192,16 +192,23 @@ static void print_regs(regmask_t *regmask, bool full)
 	print_sequence();
 
 	printf(" (cnt=%d, max=%d)", cnt, max);
+
+	return max;
 }
+
+static int instructions;
+static int ss, sy;
 
 static void print_reg_stats(int level)
 {
+	int fullreg, halfreg;
+
 	printf("%sRegister Stats:\n", levels[level]);
 	printf("%s- used (half):", levels[level]);
-	print_regs(&regs.used, false);
+	halfreg = print_regs(&regs.used, false);
 	printf("\n");
 	printf("%s- used (full):", levels[level]);
-	print_regs(&regs.used, true);
+	fullreg = print_regs(&regs.used, true);
 	printf("\n");
 	printf("%s- input (half):", levels[level]);
 	print_regs(&regs.rbw, false);
@@ -221,6 +228,18 @@ static void print_reg_stats(int level)
 	printf("%s- output (full):", levels[level]);
 	print_regs(&regs.war, true);
 	printf("  (estimated)\n");
+
+	/* convert to vec4, which is the granularity that registers are
+	 * assigned to shader:
+	 */
+	fullreg = (fullreg + 3) / 4;
+	halfreg = (halfreg + 3) / 4;
+
+	// Note this count of instructions includes rptN, which matches
+	// up to how mesa prints this:
+	printf("%s- shaderdb: %d instructions, %d half, %d full\n",
+			levels[level], instructions, fullreg, halfreg);
+	printf("%s- shaderdb: %d (ss), %d (sy)\n", levels[level], ss, sy);
 }
 
 /* we have to process the dst register after src to avoid tripping up
@@ -1172,11 +1191,16 @@ static bool print_instr(uint32_t *dwords, int level, int n)
 	 */
 
 	repeat = instr_repeat(instr);
+	instructions += 1 + repeat;
 
-	if (instr->sync)
+	if (instr->sync) {
 		printf("(sy)");
-	if (instr->ss && ((instr->opc_cat <= 4) || (instr->opc_cat == 7)))
+		sy++;
+	}
+	if (instr->ss && ((instr->opc_cat <= 4) || (instr->opc_cat == 7))) {
 		printf("(ss)");
+		ss++;
+	}
 	if (instr->jmp_tgt)
 		printf("(jp)");
 	if (instr_sat(instr))
@@ -1226,6 +1250,8 @@ int disasm_a3xx(uint32_t *dwords, int sizedwords, int level, enum shader_t type)
 	int i;
 
 //	assert((sizedwords % 2) == 0);
+
+	ss = sy = instructions = 0;
 
 	memset(&regs, 0, sizeof(regs));
 
