@@ -34,6 +34,9 @@
 #include "disasm.h"
 #include "io.h"
 
+#define ASCII_XOR 0xff
+#include "util.h"
+
 struct pgm_header {
 	uint32_t size;
 	uint32_t unknown1;
@@ -241,12 +244,12 @@ struct state {
 	struct output  *outputs[0];  /* I guess only one?? */
 };
 
-const char *infile;
+static const char *infile;
 static int full_dump = 1;
 static int dump_shaders = 0;
 static int gpu_id;
 
-char *find_sect_end(char *buf, int sz)
+static char *find_sect_end(char *buf, int sz)
 {
 	uint8_t *ptr = (uint8_t *)buf;
 	uint8_t *end = ptr + sz - 3;
@@ -268,159 +271,7 @@ char *find_sect_end(char *buf, int sz)
 	return NULL;
 }
 
-/* convert float to dword */
-static inline float d2f(uint32_t d)
-{
-	union {
-		float f;
-		uint32_t d;
-	} u = {
-		.d = d,
-	};
-	return u.f;
-}
-
-static void dump_hex(char *buf, int sz)
-{
-	uint8_t *ptr = (uint8_t *)buf;
-	uint8_t *end = ptr + sz;
-	int i = 0;
-
-	while (ptr < end) {
-		uint32_t d = 0;
-
-		printf((i % 8) ? " " : "\t");
-
-		d |= *(ptr++) <<  0;
-		d |= *(ptr++) <<  8;
-		d |= *(ptr++) << 16;
-		d |= *(ptr++) << 24;
-
-		printf("%08x", d);
-
-		if ((i % 8) == 7) {
-			printf("\n");
-		}
-
-		i++;
-	}
-
-	if (i % 8) {
-		printf("\n");
-	}
-}
-
-static void dump_float(char *buf, int sz)
-{
-	uint8_t *ptr = (uint8_t *)buf;
-	uint8_t *end = ptr + sz - 3;
-	int i = 0;
-
-	while (ptr < end) {
-		uint32_t d = 0;
-
-		printf((i % 8) ? " " : "\t");
-
-		d |= *(ptr++) <<  0;
-		d |= *(ptr++) <<  8;
-		d |= *(ptr++) << 16;
-		d |= *(ptr++) << 24;
-
-		printf("%8f", d2f(d));
-
-		if ((i % 8) == 7) {
-			printf("\n");
-		}
-
-		i++;
-	}
-
-	if (i % 8) {
-		printf("\n");
-	}
-}
-
-#define is_ok_ascii(c) \
-	(isascii(c) && ((c == '\t') || !iscntrl(c)))
-
-static void clean_ascii(char *buf, int sz)
-{
-	uint8_t *ptr = (uint8_t *)buf;
-	uint8_t *end = ptr + sz;
-	while (ptr < end) {
-		*(ptr++) ^= 0xff;
-	}
-}
-
-static void dump_ascii(char *buf, int sz)
-{
-	uint8_t *ptr = (uint8_t *)buf;
-	uint8_t *end = ptr + sz;
-	printf("\t");
-	while (ptr < end) {
-		uint8_t c = *(ptr++) ^ 0xff;
-		if (c == '\n') {
-			printf("\n\t");
-		} else if (c == '\0') {
-			printf("\n\t-----------------------------------\n\t");
-		} else if (is_ok_ascii(c)) {
-			printf("%c", c);
-		} else {
-			printf("?");
-		}
-	}
-	printf("\n");
-}
-
-static void dump_hex_ascii(char *buf, int sz)
-{
-	uint8_t *ptr = (uint8_t *)buf;
-	uint8_t *end = ptr + sz;
-	uint8_t *ascii = ptr;
-	int i = 0;
-
-	printf("-----------------------------------------------\n");
-	printf("%d (0x%x) bytes\n", sz, sz);
-
-	while (ptr < end) {
-		uint32_t d = 0;
-
-		printf((i % 4) ? " " : "\t");
-
-		d |= *(ptr++) <<  0;
-		d |= *(ptr++) <<  8;
-		d |= *(ptr++) << 16;
-		d |= *(ptr++) << 24;
-
-		printf("%08x", d);
-
-		if ((i % 4) == 3) {
-			int j;
-			printf("\t|");
-			for (j = 0; j < 16; j++) {
-				uint8_t c = *(ascii++);
-				c ^= 0xff;
-				printf("%c", (isascii(c) && !iscntrl(c)) ? c : '.');
-			}
-			printf("|\n");
-		}
-
-		i++;
-	}
-
-	if (i % 8) {
-		int j;
-		printf("\t|");
-		while (ascii < end) {
-			uint8_t c = *(ascii++);
-			c ^= 0xff;
-			printf("%c", (isascii(c) && !iscntrl(c)) ? c : '.');
-		}
-		printf("|\n");
-	}
-}
-
-void *next_sect(struct state *state, int *sect_size)
+static void *next_sect(struct state *state, int *sect_size)
 {
 	char *end = find_sect_end(state->buf, state->sz);
 	void *sect;
@@ -817,7 +668,7 @@ printf("hdr_size=%d\n", hdr_size);
 	}
 }
 
-void dump_program(struct state *state)
+static void dump_program(struct state *state)
 {
 	int i, sect_size;
 	uint8_t *ptr;
