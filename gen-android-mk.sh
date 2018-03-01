@@ -67,3 +67,32 @@ include \$(BUILD_EXECUTABLE)
 EOF
 done
 
+cat << EOF
+
+#
+# CL Test Apps:
+#
+EOF
+
+for f in tests-cl/test-*.c; do
+	modname=`basename $f`
+	modname=${modname%.c}
+
+	cat << EOF
+
+include \$(CLEAR_VARS)
+# TODO this needs to be diff for 32 vs 64 bit
+P = ~/src/db820c/z4/system-z4-full
+LOCAL_MODULE    := $modname
+LOCAL_SRC_FILES := $f tests-cl/shim.c
+LOCAL_C_INCLUDES := \$(LOCAL_PATH)/includes \$(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -lc++ -ldl -llog -lm
+LOCAL_LDLIBS := \$(P)/vendor/lib64/libOpenCL.so -rpath \$(P)/vendor/lib64 -rpath \$(P)/lib64
+include \$(BUILD_EXECUTABLE)
+EOF
+done
+
+#
+# CL Test Apps:
+

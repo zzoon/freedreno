@@ -44,6 +44,15 @@ const char *KernelSource = "\n"
 		"    out[iGID] = in[iGID];                                      \n"
 		"}                                                              \n";
 
+/*
+__kernel void simple(__global char *out, __local char *in)
+{
+    int iGID = get_global_id(0);
+    out[iGID] = in[iGID];
+}
+
+ */
+
 static char buffer[4096 * 4096 * 4];
 
 
@@ -128,7 +137,7 @@ static void run_test(uint32_t workdim, const size_t *workoff,
 	RD_END();
 }
 
-int main(int argc, char *argv)
+int main(int argc, char **argv)
 {
 	const size_t sizes[32] = {
 			64, 32, 16, 8, 4, 2, 1, 1, 1, 1,
@@ -139,39 +148,34 @@ int main(int argc, char *argv)
 			256, 512, 1024, 2048,
 	};
 
+	TEST_START();
 	/* 1: */
-	run_test(1, NULL, &sizes[1], &sizes[2]);
-	run_test(2, NULL, &sizes[1], &sizes[2]);
-	run_test(1, NULL, &sizes[2], &sizes[3]);
-	run_test(2, NULL, &sizes[2], &sizes[3]);
-	run_test(3, NULL, &sizes[2], &sizes[3]);
+	TEST(run_test(1, NULL, &sizes[1], &sizes[2]));
+	TEST(run_test(2, NULL, &sizes[1], &sizes[2]));
+	TEST(run_test(1, NULL, &sizes[2], &sizes[3]));
+	TEST(run_test(2, NULL, &sizes[2], &sizes[3]));
+	TEST(run_test(3, NULL, &sizes[2], &sizes[3]));
 	/* 5: */
-	run_test(1, NULL, &sizes[2], &sizes[4]);
-	run_test(2, NULL, &sizes[2], &sizes[4]);
-	run_test(3, NULL, &sizes[2], &sizes[4]);
-	run_test(1, NULL, &sizes[3], &sizes[4]);
-	run_test(2, NULL, &sizes[3], &sizes[4]);
+	TEST(run_test(1, NULL, &sizes[2], &sizes[4]));
+	TEST(run_test(2, NULL, &sizes[2], &sizes[4]));
+	TEST(run_test(3, NULL, &sizes[2], &sizes[4]));
+	TEST(run_test(1, NULL, &sizes[3], &sizes[4]));
+	TEST(run_test(2, NULL, &sizes[3], &sizes[4]));
 	/* 10: */
-	run_test(3, NULL, &sizes[3], &sizes[4]);
-	run_test(1, &sizes[2], &sizes[2], &sizes[3]);
-	run_test(2, &sizes[2], &sizes[2], &sizes[3]);
-	run_test(3, &sizes[2], &sizes[2], &sizes[3]);
-	run_test(2, &sizes[1], &sizes[2], &sizes[3]);
+	TEST(run_test(3, NULL, &sizes[3], &sizes[4]));
+	TEST(run_test(1, &sizes[2], &sizes[2], &sizes[3]));
+	TEST(run_test(2, &sizes[2], &sizes[2], &sizes[3]));
+	TEST(run_test(3, &sizes[2], &sizes[2], &sizes[3]));
+	TEST(run_test(2, &sizes[1], &sizes[2], &sizes[3]));
 	/* 15: */
-	run_test(3, &sizes[1], &sizes[2], &sizes[3]);
-	run_test(3, &sizes2[4], &sizes[2], &sizes[3]);
-	run_test(3, &sizes2[7], &sizes[2], &sizes[3]);
-	run_test(1, NULL, &sizes[3], &sizes[3]);
-	run_test(1, NULL, &sizes[3], &sizes[4]);
+	TEST(run_test(3, &sizes[1], &sizes[2], &sizes[3]));
+	TEST(run_test(3, &sizes2[4], &sizes[2], &sizes[3]));
+	TEST(run_test(3, &sizes2[7], &sizes[2], &sizes[3]));
+	TEST(run_test(1, NULL, &sizes[3], &sizes[3]));
+	TEST(run_test(1, NULL, &sizes[3], &sizes[4]));
 	/* 20: */
-	run_test(1, NULL, &sizes[0], &sizes[5]);
-	run_test(3, &sizes[3], &sizes2[8], &sizes2[0]);
-	run_test(3, &sizes[3], &sizes2[9], &sizes2[1]);
+	TEST(run_test(1, NULL, &sizes[0], &sizes[5]));
+	TEST(run_test(3, &sizes[3], &sizes2[8], &sizes2[0]));
+	TEST(run_test(3, &sizes[3], &sizes2[9], &sizes2[1]));
+	TEST_END();
 }
-
-#ifdef BIONIC
-void _start(int argc, char **argv)
-{
-	exit(main(argc, argv));
-}
-#endif

@@ -176,7 +176,7 @@ static void run_test(int image_width, int image_height, int image_pitch,
 	RD_END();
 }
 
-int main(int argc, char *argv)
+int main(int argc, char **argv)
 {
 	run_test(204, 132, 4096, CL_RGBA, CL_UNORM_INT8);
 	run_test(204, 132, 4096, CL_RGBA, CL_UNORM_INT16);
@@ -207,10 +207,3 @@ int main(int argc, char *argv)
 	run_test(204, 132, 4096, CL_R, CL_FLOAT);
 	return 0;
 }
-
-#ifdef BIONIC
-void _start(int argc, char **argv)
-{
-	exit(main(argc, argv));
-}
-#endif
