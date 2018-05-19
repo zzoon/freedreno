@@ -59,6 +59,7 @@ static bool no_color = false;
 static bool summary = false;
 static bool allregs = false;
 static bool dump_textures = false;
+static bool is_blob = false;
 static int vertices;
 static unsigned gpu_id = 220;
 
@@ -915,6 +916,18 @@ static struct {
 //		REG(RB_2D_DST_FLAGS_HI, reg_dump_gpuaddr_hi),
 
 		{NULL},
+}, reg_a6xx[] = {
+		REG(SP_VS_OBJ_START_LO, reg_gpuaddr_lo),
+		REG(SP_VS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
+		REG(SP_FS_OBJ_START_LO, reg_gpuaddr_lo),
+		REG(SP_FS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
+		REG(SP_CS_OBJ_START_LO, reg_gpuaddr_lo),
+		REG(SP_CS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
+		REG(TPL1_FS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(TPL1_FS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(TPL1_FS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(TPL1_FS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		{NULL},
 }, *type0_reg;
 
 static bool initialized = false;
@@ -982,6 +995,14 @@ static void init_a5xx(void)
 		return;
 	type0_reg = reg_a5xx;
 	init_rnn("a5xx");
+}
+
+static void init_a6xx(void)
+{
+	if (type0_reg == reg_a6xx)
+		return;
+	type0_reg = reg_a6xx;
+	init_rnn("a6xx");
 }
 
 static void init(void)
@@ -1271,10 +1292,9 @@ a3xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
 }
 
 static void
-a4xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
+_get_state_type(unsigned state_block_id, unsigned state_type,
+		enum shader_t *stage, enum state_t *state)
 {
-	unsigned state_block_id = (dwords[0] >> 18) & 0xf;
-	unsigned state_type = dwords[1] & 0x3;
 	static const struct {
 		enum shader_t stage;
 		enum state_t  state;
@@ -1332,6 +1352,22 @@ a4xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
 	*state = lookup[state_block_id][state_type].state;
 }
 
+static void
+a4xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
+{
+	unsigned state_block_id = (dwords[0] >> 18) & 0xf;
+	unsigned state_type = dwords[1] & 0x3;
+	_get_state_type(state_block_id, state_type, stage, state);
+}
+
+static void
+a6xx_get_state_type(uint32_t *dwords, enum shader_t *stage, enum state_t *state)
+{
+	unsigned state_block_id = (dwords[0] >> 18) & 0xf;
+	unsigned state_type = (dwords[0] >> 14) & 0x3;
+	_get_state_type(state_block_id, state_type, stage, state);
+}
+
 static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	enum shader_t stage;
@@ -1344,7 +1380,9 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 	if (quiet(2))
 		return;
 
-	if (gpu_id >= 400)
+	if (gpu_id >= 600)
+		a6xx_get_state_type(dwords, &stage, &state);
+	else if (gpu_id >= 400)
 		a4xx_get_state_type(dwords, &stage, &state);
 	else
 		a3xx_get_state_type(dwords, &stage, &state);
@@ -1930,18 +1968,11 @@ static void cp_nop(uint32_t *dwords, uint32_t sizedwords, int level)
 	if (quiet(3))
 		return;
 
-	/* attempt to decode as string: */
-	if (is_64b()) {
-		printf("%016lx:%s", gpuaddr(dwords), levels[level]);
-	} else {
-		printf("%08x:%s", (uint32_t)gpuaddr(dwords), levels[level]);
-	}
-
-	// filter out some things blob inserts which is not ascii:
-	if ((dwords[0] == 0xfeedc0de) || (dwords[0] == 0xdeec0ded)) {
-		printf("\n");
+	// blob doesn't use CP_NOP for string_marker but it does
+	// use it for things that end up looking like, but aren't
+	// ascii chars:
+	if (is_blob)
 		return;
-	}
 
 	for (i = 0; i < 4 * sizedwords; i++) {
 		if (buf[i] == '\0')
@@ -2291,6 +2322,12 @@ static const struct {
 		CP(CONTEXT_REG_BUNCH, cp_context_reg_bunch),
 		CP(DRAW_INDIRECT, cp_draw_indirect),
 		CP(DRAW_INDX_INDIRECT, cp_draw_indx_indirect),
+
+		/* for a6xx */
+#define CP_LOAD_STATE6_GEOM 0x32
+#define CP_LOAD_STATE6_FRAG 0x34
+		CP(LOAD_STATE6_GEOM, cp_load_state),
+		CP(LOAD_STATE6_FRAG, cp_load_state),
 };
 
 
@@ -2431,8 +2468,15 @@ static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level)
 				printf("\t%sopcode: %s%s%s (%02x) (%d dwords)\n", levels[level],
 						rnn->vc->colors->bctarg, name, rnn->vc->colors->reset,
 						val, count);
-				if (name)
+				if (name) {
+					/* special hack for two packets that decode the same way
+					 * on a6xx:
+					 */
+					if (!strcmp(name, "CP_LOAD_STATE6_FRAG") ||
+							!strcmp(name, "CP_LOAD_STATE6_GEOM"))
+						name = "CP_LOAD_STATE6";
 					dump_domain(dwords+1, count-1, level+2, name);
+				}
 			}
 			if (type3_op[val].fxn)
 				type3_op[val].fxn(dwords+1, count-1, level+1);
@@ -2803,6 +2847,7 @@ static int handle_file(const char *filename, int start, int end, int draw)
 			printl(1, "test: %s\n", (char *)buf);
 			break;
 		case RD_CMD:
+			is_blob = true;
 			printl(2, "cmd: %s\n", (char *)buf);
 			break;
 		case RD_VERT_SHADER:
@@ -2846,7 +2891,9 @@ static int handle_file(const char *filename, int start, int end, int draw)
 			if (!got_gpu_id) {
 				gpu_id = *((unsigned int *)buf);
 				printl(2, "gpu_id: %d\n", gpu_id);
-				if (gpu_id >= 500)
+				if (gpu_id >= 600)
+					init_a6xx();
+				else if (gpu_id >= 500)
 					init_a5xx();
 				else if (gpu_id >= 400)
 					init_a4xx();
