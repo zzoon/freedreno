@@ -196,7 +196,8 @@ static int print_regs(regmask_t *regmask, bool full)
 	return max;
 }
 
-static int instructions;
+/* instructions counts rpnN, and instlen does not */
+static int instructions, instlen;
 static int ss, sy;
 
 static void print_reg_stats(int level)
@@ -237,8 +238,8 @@ static void print_reg_stats(int level)
 
 	// Note this count of instructions includes rptN, which matches
 	// up to how mesa prints this:
-	printf("%s- shaderdb: %d instructions, %d half, %d full\n",
-			levels[level], instructions, fullreg, halfreg);
+	printf("%s- shaderdb: %d instructions (%d instlen), %d half, %d full\n",
+			levels[level], instructions, instlen, halfreg, fullreg);
 	printf("%s- shaderdb: %d (ss), %d (sy)\n", levels[level], ss, sy);
 }
 
@@ -1192,6 +1193,7 @@ static bool print_instr(uint32_t *dwords, int level, int n)
 
 	repeat = instr_repeat(instr);
 	instructions += 1 + repeat;
+	instlen++;
 
 	if (instr->sync) {
 		printf("(sy)");
@@ -1251,7 +1253,7 @@ int disasm_a3xx(uint32_t *dwords, int sizedwords, int level, enum shader_t type)
 
 //	assert((sizedwords % 2) == 0);
 
-	ss = sy = instructions = 0;
+	ss = sy = instructions = instlen = 0;
 
 	memset(&regs, 0, sizeof(regs));
 
