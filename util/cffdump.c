@@ -1936,6 +1936,13 @@ static void cp_nop(uint32_t *dwords, uint32_t sizedwords, int level)
 	} else {
 		printf("%08x:%s", (uint32_t)gpuaddr(dwords), levels[level]);
 	}
+
+	// filter out some things blob inserts which is not ascii:
+	if ((dwords[0] == 0xfeedc0de) || (dwords[0] == 0xdeec0ded)) {
+		printf("\n");
+		return;
+	}
+
 	for (i = 0; i < 4 * sizedwords; i++) {
 		if (buf[i] == '\0')
 			break;
@@ -2161,6 +2168,35 @@ static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
 	}
 }
 
+static void cp_compute_checkpoint(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	uint64_t addr;
+	uint32_t *ptr, len;
+
+	assert(is_64b());
+	assert(gpu_id >= 500);
+
+	assert(sizedwords == 8);
+
+	addr = dwords[5];
+	addr |= ((uint64_t)dwords[6]) << 32;
+	len = dwords[7];
+
+	printl(3, "%saddr: 0x%016lx\n", levels[level], addr);
+	printl(3, "%slen:  0x%x\n", levels[level], len);
+
+	ptr = hostptr(addr);
+
+	if (ptr) {
+		if (!quiet(2)) {
+			ib++;
+			dump_commands(ptr, len, level+1);
+			ib--;
+			dump_hex(ptr, len, level+1);
+		}
+	}
+}
+
 static void cp_blit(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	do_query(rnn_enumname(rnn, "cp_blit_cmd", dwords[0]), 0);
@@ -2250,6 +2286,7 @@ static const struct {
 
 		/* for a5xx */
 		CP(SET_RENDER_MODE, cp_set_render_mode),
+		CP(COMPUTE_CHECKPOINT, cp_compute_checkpoint),
 		CP(BLIT, cp_blit),
 		CP(CONTEXT_REG_BUNCH, cp_context_reg_bunch),
 		CP(DRAW_INDIRECT, cp_draw_indirect),
