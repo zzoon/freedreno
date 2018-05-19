@@ -75,4 +75,33 @@ void *memcpy(void *dest, const void *src, size_t n);
 #define FIXED(v)   ((unsigned int) ((v) << 16))
 #define ALIGN(v,a) (((v) + (a) - 1) & ~((a) - 1))
 
+
+/* ************************************************************************* */
+/* helper macros for tests, to let test-runner select test to run via
+ * TESTNUM env variable.  Note env variable used because passing args
+ * when tests are compiled for bionic doesn't really work.
+ */
+
+static inline int __gettest(void)
+{
+	const char *testnum = getenv("TESTNUM");
+	if (testnum)
+		return strtol(testnum, NULL, 0);
+	return -1;
+}
+
+#define TEST_START() \
+	int __n = 0, __test = __gettest()
+
+#define TEST(t) do { \
+		if ((__test == __n++) || (__test == -1)) { \
+			t; \
+		} \
+	} while (0)
+
+#define TEST_END() do { \
+		if (__test >= __n++) \
+			exit(42); \
+	} while (0)
+
 #endif /* TEST_UTIL_COMMON_H_ */
