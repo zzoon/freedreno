@@ -330,7 +330,7 @@ static int install_fd(const char *path, int fd)
 			printf("need WRAP_GPU_ID/WRAP_GMEM_SIZE!\n");
 			return -1;
 		}
-		if (wrap_gpu_id() >= 500)
+		if ((wrap_gpu_id() >= 500) && !env2u("WRAP_FORCE_32B"))
 			is64b = 1;
 		file_table[fd].is_emulated = 1;
 #endif

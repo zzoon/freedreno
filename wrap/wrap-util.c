@@ -157,6 +157,14 @@ void rd_write_section(enum rd_sect_type type, const void *buf, int sz)
 		fsync(fd);
 }
 
+unsigned int env2u(const char *name)
+{
+	const char *str = getenv(name);
+	if (!str)
+		return 0;
+	return strtol(str, NULL, 0);
+}
+
 /* in safe mode, sync log file frequently, and insert delays before/after
  * issueibcmds.. useful when we are crashing things and want to be sure to
  * capture as much of the log as possible
@@ -165,8 +173,7 @@ unsigned int wrap_safe(void)
 {
 	static unsigned int val = -1;
 	if (val == -1) {
-		const char *str = getenv("WRAP_SAFE");
-		val = str ? strtol(str, NULL, 0) : 0;
+		val = env2u("WRAP_SAFE");
 	}
 	return val;
 }
@@ -179,8 +186,7 @@ unsigned int wrap_gpu_id(void)
 {
 	static unsigned int val = -1;
 	if (val == -1) {
-		const char *str = getenv("WRAP_GPU_ID");
-		val = str ? strtol(str, NULL, 0) : 0;
+		val = env2u("WRAP_GPU_ID");
 	}
 	return val;
 }
@@ -208,8 +214,7 @@ unsigned int wrap_gmem_size(void)
 {
 	static unsigned int val = -1;
 	if (val == -1) {
-		const char *str = getenv("WRAP_GMEM_SIZE");
-		val = str ? strtol(str, NULL, 0) : 0;
+		val = env2u("WRAP_GMEM_SIZE");
 	}
 	return val;
 }

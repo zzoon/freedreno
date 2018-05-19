@@ -69,6 +69,7 @@ void * __rd_dlsym_helper(const char *name);
 		orig_##func = __rd_dlsym_helper(#func);	\
 
 
+unsigned int env2u(const char *name);
 unsigned int wrap_safe(void);
 unsigned int wrap_gpu_id(void);
 unsigned int wrap_gpu_id_patchid(void);
