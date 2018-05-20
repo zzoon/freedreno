@@ -2811,6 +2811,8 @@ static int handle_file(const char *filename, int start, int end, int draw)
 		return 0;
 	}
 
+	struct buffer gpuaddr;
+
 	while (true) {
 		uint32_t arr[2];
 
@@ -2861,16 +2863,30 @@ static int handle_file(const char *filename, int start, int end, int draw)
 				for (i = 0; i < nbuffers; i++) {
 					free(buffers[i].hostptr);
 					buffers[i].hostptr = NULL;
+					buffers[i].len = 0;
 				}
 				nbuffers = 0;
 				needs_reset = false;
 			}
-			parse_addr(buf, sz, &buffers[nbuffers].len, &buffers[nbuffers].gpuaddr);
+			parse_addr(buf, sz, &gpuaddr.len, &gpuaddr.gpuaddr);
 			break;
 		case RD_BUFFER_CONTENTS:
-			buffers[nbuffers].hostptr = buf;
-			nbuffers++;
-			assert(nbuffers < ARRAY_SIZE(buffers));
+			for (i = 0; i < nbuffers; i++) {
+				if (buffers[i].gpuaddr == gpuaddr.gpuaddr)
+					break;
+			}
+			if (i == nbuffers) {
+				/* some traces, like test-perf, with some blob versions,
+				 * seem to generate an unreasonable # of gpu buffers (a
+				 * leak?), so just ignore them.
+				 */
+				if (nbuffers >= ARRAY_SIZE(buffers))
+					break;
+				nbuffers++;
+			}
+			buffers[i].hostptr = buf;
+			buffers[i].len     = gpuaddr.len;
+			buffers[i].gpuaddr = gpuaddr.gpuaddr;
 			buf = NULL;
 			break;
 		case RD_CMDSTREAM_ADDR:
