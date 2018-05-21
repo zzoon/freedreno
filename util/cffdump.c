@@ -1149,7 +1149,7 @@ static void dump_domain(uint32_t *dwords, uint32_t sizedwords, int level,
 
 static uint32_t bin_x1, bin_x2, bin_y1, bin_y2;
 static unsigned mode;
-static unsigned render_mode;
+static char *render_mode;
 
 static const char *mode_name(unsigned render_mode)
 {
@@ -1181,7 +1181,7 @@ static void do_query(const char *primtype, uint32_t num_indices)
 			printf("%4d: %s(%u,%u-%u,%u):%u:", draw_count, primtype,
 					bin_x1, bin_y1, bin_x2, bin_y2, num_indices);
 			if (gpu_id >= 500)
-				printf("m%d:%s:", render_mode, mode_name(render_mode));
+				printf("%s:", render_mode);
 			printf("\t%08x", lastval);
 			if (lastval != lastvals[regbase]) {
 				printf("!");
@@ -1903,7 +1903,7 @@ static void cp_draw_indx_offset(uint32_t *dwords, uint32_t sizedwords, int level
 	do_query(rnn_enumname(rnn, "pc_di_primtype", prim_type), num_indices);
 
 	if ((gpu_id >= 500) && !quiet(2)) {
-		printf("%smode: %s\n", levels[level], mode_name(render_mode));
+		printf("%smode: %s\n", levels[level], render_mode);
 	}
 
 	/* don't bother dumping registers for the dummy draw_indx's.. */
@@ -1919,7 +1919,7 @@ static void cp_draw_indx_indirect(uint32_t *dwords, uint32_t sizedwords, int lev
 	do_query(rnn_enumname(rnn, "pc_di_primtype", prim_type), 0);
 
 	if ((gpu_id >= 500) && !quiet(2)) {
-		printf("%smode: %s\n", levels[level], mode_name(render_mode));
+		printf("%smode: %s\n", levels[level], render_mode);
 	}
 
 	if (is_64b())
@@ -1945,7 +1945,7 @@ static void cp_draw_indirect(uint32_t *dwords, uint32_t sizedwords, int level)
 	do_query(rnn_enumname(rnn, "pc_di_primtype", prim_type), 0);
 
 	if ((gpu_id >= 500) && !quiet(2)) {
-		printf("%smode: %s\n", levels[level], mode_name(render_mode));
+		printf("%smode: %s\n", levels[level], render_mode);
 	}
 
 	addr = (((uint64_t)dwords[2] & 0x1ffff) << 32) | dwords[1];
@@ -2160,7 +2160,7 @@ static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
 
 	assert(gpu_id >= 500);
 
-	render_mode = dwords[0];
+	render_mode = mode_name(dwords[0]);
 
 	if (sizedwords == 1)
 		return;
