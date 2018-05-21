@@ -2073,12 +2073,99 @@ static void cp_reg_to_mem(uint32_t *dwords, uint32_t sizedwords, int level)
 	printl(3, "%sdest: %08x\n", levels[level], mem);
 }
 
+struct draw_state {
+	uint16_t enable_mask;
+	uint16_t flags;
+	uint32_t count;
+	uint64_t addr;
+	void *ptr;
+};
+
+struct draw_state state[32];
+
+#define FLAG_DIRTY              0x1
+#define FLAG_DISABLE            0x2
+#define FLAG_DISABLE_ALL_GROUPS 0x4
+#define FLAG_LOAD_IMMED         0x8
+
+static void disable_group(unsigned group_id)
+{
+	struct draw_state *ds = &state[group_id];
+	free(ds->ptr);
+	memset(ds, 0, sizeof(*ds));
+}
+
+static void disable_all_groups(void)
+{
+	for (unsigned i = 0; i < ARRAY_SIZE(state); i++)
+		disable_group(i);
+}
+
+static void load_group(unsigned group_id, int level)
+{
+	struct draw_state *ds = &state[group_id];
+
+	if (!ds->count)
+		return;
+
+	if (gpu_id >= 600) {
+		/* a6xx seems to be a bit more sophisticated, it can emit
+		 * different, potentially conflicting, state-groups for
+		 * binning pass vs draw.  So we need to figure out the
+		 * current mode and only dump_commands() for the enabled
+		 * state-groups:
+		 *
+		 * This is probably not quite right, but is a reasonable
+		 * first-pass approximation for now..
+		 */
+		unsigned mode;
+
+		if (strstr(render_mode, "BINNING")) {
+			mode = 0x1;
+		} else {
+			mode = 0x6;
+		}
+
+		if (!(ds->enable_mask & mode)) {
+			return;
+		}
+	}
+
+	printl(2, "%sgroup_id: %u\n", levels[level], group_id);
+	printl(2, "%scount: %d\n", levels[level], ds->count);
+	printl(2, "%saddr: %016llx\n", levels[level], ds->addr);
+
+	if (ds->ptr) {
+		if (!quiet(2))
+			dump_hex(ds->ptr, ds->count, level+1);
+
+		ib++;
+		dump_commands(ds->ptr, ds->count, level+1);
+		ib--;
+	}
+
+	/* TODO figure out if a group getting loaded is a one-shot thing
+	 * (ie. should we automatically disable_group() after it is
+	 * evaluated?  Need to device some experiments..)
+	 */
+}
+
+static void load_all_groups(int level)
+{
+	for (unsigned i = 0; i < ARRAY_SIZE(state); i++)
+		load_group(i, level);
+}
+
 static void cp_set_draw_state(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	uint32_t i;
 
 	for (i = 0; i < sizedwords; ) {
+		struct draw_state *ds;
 		uint32_t count = dwords[i] & 0xffff;
+		uint32_t group_id = (dwords[i] >> 24) & 0x1f;
+		uint32_t enable_mask = (dwords[i] >> 20) & 0xf;
+		uint32_t flags = (dwords[i] >> 16) & 0xf;
 		uint64_t addr;
 		uint32_t *ptr;
 
@@ -2091,18 +2178,36 @@ static void cp_set_draw_state(uint32_t *dwords, uint32_t sizedwords, int level)
 			i += 2;
 		}
 
+		if (flags & FLAG_DISABLE_ALL_GROUPS) {
+			disable_all_groups();
+			continue;
+		}
+
+		if (flags & FLAG_DISABLE) {
+			disable_group(group_id);
+			continue;
+		}
+
+		assert(group_id < ARRAY_SIZE(state));
+		disable_group(group_id);
+
+		ds = &state[group_id];
+
+		ds->enable_mask = enable_mask;
+		ds->flags = flags;
+		ds->count = count;
+		ds->addr  = addr;
+
 		ptr = hostptr(addr);
 
-		printl(3, "%scount: %d\n", levels[level], count);
-		printl(3, "%saddr: %016llx\n", levels[level], addr);
-
 		if (ptr) {
-			if (!quiet(2))
-				dump_hex(ptr, count, level+1);
+			ds->ptr = malloc(count * sizeof(uint32_t));
+			memcpy(ds->ptr, ptr, count * sizeof(uint32_t));
+		}
 
-			ib++;
-			dump_commands(ptr, count, level+1);
-			ib--;
+		if (flags & FLAG_LOAD_IMMED) {
+			load_group(group_id, level);
+			disable_group(group_id);
 		}
 	}
 }
@@ -2129,6 +2234,16 @@ static void cp_exec_cs_indirect(uint32_t *dwords, uint32_t sizedwords, int level
 
 	do_query("compute", 0);
 	dump_register_summary(level);
+}
+
+static void cp_set_mode(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+	/* just map this back to a5xx render_mode values for now.. */
+	if (dwords[0] == 0x1) {
+		render_mode = "BINNING";
+	} else {
+		render_mode = "DRAW";
+	}
 }
 
 static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -2253,9 +2368,12 @@ static void cp_context_reg_bunch(uint32_t *dwords, uint32_t sizedwords, int leve
 	summary = saved_summary;
 }
 
-#define CP(x, fxn)   [CP_ ## x] = { fxn }
+#define CP(x, fxn, ...)   [CP_ ## x] = { fxn, ##__VA_ARGS__ }
 static const struct {
 	void (*fxn)(uint32_t *dwords, uint32_t sizedwords, int level);
+	struct {
+		bool load_all_groups;
+	} options;
 } type3_op[0xff] = {
 		CP(ME_INIT, NULL),
 		CP(NOP, cp_nop),
@@ -2278,8 +2396,8 @@ static const struct {
 		CP(EVENT_WRITE_CFL, NULL),
 		CP(EVENT_WRITE_ZPD, NULL),
 		CP(RUN_OPENCL, cp_run_cl),
-		CP(DRAW_INDX, cp_draw_indx),
-		CP(DRAW_INDX_2, cp_draw_indx_2),
+		CP(DRAW_INDX, cp_draw_indx, {.load_all_groups=true}),
+		CP(DRAW_INDX_2, cp_draw_indx_2, {.load_all_groups=true}),
 		CP(DRAW_INDX_BIN, NULL),
 		CP(DRAW_INDX_2_BIN, NULL),
 		CP(VIZ_QUERY, NULL),
@@ -2311,7 +2429,7 @@ static const struct {
 
 		/* for a4xx */
 		CP(SET_DRAW_STATE, cp_set_draw_state),
-		CP(DRAW_INDX_OFFSET, cp_draw_indx_offset),
+		CP(DRAW_INDX_OFFSET, cp_draw_indx_offset, {.load_all_groups=true}),
 		CP(EXEC_CS, cp_exec_cs),
 		CP(EXEC_CS_INDIRECT, cp_exec_cs_indirect),
 
@@ -2320,14 +2438,16 @@ static const struct {
 		CP(COMPUTE_CHECKPOINT, cp_compute_checkpoint),
 		CP(BLIT, cp_blit),
 		CP(CONTEXT_REG_BUNCH, cp_context_reg_bunch),
-		CP(DRAW_INDIRECT, cp_draw_indirect),
-		CP(DRAW_INDX_INDIRECT, cp_draw_indx_indirect),
+		CP(DRAW_INDIRECT, cp_draw_indirect, {.load_all_groups=true}),
+		CP(DRAW_INDX_INDIRECT, cp_draw_indx_indirect, {.load_all_groups=true}),
 
 		/* for a6xx */
 #define CP_LOAD_STATE6_GEOM 0x32
 #define CP_LOAD_STATE6_FRAG 0x34
+#define CP_SET_MODE 0x63
 		CP(LOAD_STATE6_GEOM, cp_load_state),
 		CP(LOAD_STATE6_FRAG, cp_load_state),
+		CP(SET_MODE, cp_set_mode),
 };
 
 
@@ -2440,9 +2560,11 @@ static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level)
 				dump_hex(dwords, count, level+1);
 #endif
 		} else if (pkt_is_type3(dwords[0])) {
-			printl(3, "t3");
 			count = type3_pkt_size(dwords[0]) + 1;
 			val = cp_type3_opcode(dwords[0]);
+			if (type3_op[val].options.load_all_groups)
+				load_all_groups(level+1);
+			printl(3, "t3");
 			init();
 			if (!quiet(2)) {
 				const char *name;
@@ -2458,9 +2580,11 @@ static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level)
 			if (!quiet(2))
 				dump_hex(dwords, count, level+1);
 		} else if (pkt_is_type7(dwords[0])) {
-			printl(3, "t7");
 			count = type7_pkt_size(dwords[0]) + 1;
 			val = cp_type7_opcode(dwords[0]);
+			if (type3_op[val].options.load_all_groups)
+				load_all_groups(level+1);
+			printl(3, "t7");
 			init();
 			if (!quiet(2)) {
 				const char *name;
