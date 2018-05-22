@@ -154,6 +154,7 @@ static reg_t idxreg(unsigned idx)
 
 static struct {
 	regmask_t used;
+	regmask_t used_merged;
 	regmask_t rbw;      /* read before write */
 	regmask_t war;      /* write after read */
 	regmask_t cnst;     /* used consts */
@@ -184,7 +185,8 @@ static int print_regs(regmask_t *regmask, bool full)
 				first = num;
 			}
 			last = num;
-			max = num;
+			if (num < (48*4))
+				max = num;
 			cnt++;
 		}
 	}
@@ -210,6 +212,9 @@ static void print_reg_stats(int level)
 	printf("\n");
 	printf("%s- used (full):", levels[level]);
 	fullreg = print_regs(&regs.used, true);
+	printf("\n");
+	printf("%s- used (merged):", levels[level]);
+	halfreg = print_regs(&regs.used_merged, false);
 	printf("\n");
 	printf("%s- input (half):", levels[level]);
 	print_regs(&regs.rbw, false);
@@ -267,6 +272,13 @@ static void process_reg_dst(void)
 
 		regmask_set(&regs.war, dst, last_dst_full, 1);
 		regmask_set(&regs.used, dst, last_dst_full, 1);
+
+		if (last_dst_full) {
+			regmask_set(&regs.used_merged, (dst*2)+0, false, 1);
+			regmask_set(&regs.used_merged, (dst*2)+1, false, 1);
+		} else {
+			regmask_set(&regs.used_merged, dst, false, 1);
+		}
 	}
 
 	last_dst_valid = false;
@@ -298,6 +310,13 @@ static void print_reg_src(reg_t reg, bool full, bool r, bool c, bool im,
 
 			regmask_set(&regs.war, src, full, 0);
 			regmask_set(&regs.used, src, full, 1);
+
+			if (full) {
+				regmask_set(&regs.used_merged, (src*2)+0, false, 1);
+				regmask_set(&regs.used_merged, (src*2)+1, false, 1);
+			} else {
+				regmask_set(&regs.used_merged, src, false, 1);
+			}
 
 			if (!r)
 				break;
