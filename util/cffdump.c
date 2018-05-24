@@ -919,14 +919,42 @@ static struct {
 }, reg_a6xx[] = {
 		REG(SP_VS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_VS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
+		REG(SP_HS_OBJ_START_LO, reg_gpuaddr_lo),
+		REG(SP_HS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
+		REG(SP_DS_OBJ_START_LO, reg_gpuaddr_lo),
+		REG(SP_DS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
+		REG(SP_GS_OBJ_START_LO, reg_gpuaddr_lo),
+		REG(SP_GS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
 		REG(SP_FS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_FS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
 		REG(SP_CS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_CS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
-		REG(TPL1_FS_TEX_CONST_LO, reg_gpuaddr_lo),
-		REG(TPL1_FS_TEX_CONST_HI, reg_dump_tex_const_hi),
-		REG(TPL1_FS_TEX_SAMP_LO,  reg_gpuaddr_lo),
-		REG(TPL1_FS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+
+		REG(SP_VS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(SP_VS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(SP_VS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(SP_VS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(SP_HS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(SP_HS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(SP_HS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(SP_HS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(SP_DS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(SP_DS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(SP_DS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(SP_DS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(SP_GS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(SP_GS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(SP_GS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(SP_GS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(SP_FS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(SP_FS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(SP_FS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(SP_FS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+		REG(SP_CS_TEX_CONST_LO, reg_gpuaddr_lo),
+		REG(SP_CS_TEX_CONST_HI, reg_dump_tex_const_hi),
+		REG(SP_CS_TEX_SAMP_LO,  reg_gpuaddr_lo),
+		REG(SP_CS_TEX_SAMP_HI,  reg_dump_tex_samp_hi),
+
 		{NULL},
 }, *type0_reg;
 
@@ -1164,7 +1192,7 @@ static void do_query(const char *primtype, uint32_t num_indices)
 	int i;
 	int n = 0;
 
-	if ((500 <= gpu_id) && (gpu_id < 600)) {
+	if ((500 <= gpu_id) && (gpu_id < 700)) {
 		uint32_t scissor_tl = reg_val(regbase("GRAS_SC_WINDOW_SCISSOR_TL"));
 		uint32_t scissor_br = reg_val(regbase("GRAS_SC_WINDOW_SCISSOR_BR"));
 
@@ -1487,12 +1515,17 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 				dump_domain(texsamp, 4, level+2, "A5XX_TEX_SAMP");
 				dump_hex(texsamp, 4, level+1);
 				texsamp += 4;
+			} else if ((600 <= gpu_id) && (gpu_id < 700)) {
+				dump_domain(texsamp, 4, level+2, "A6XX_TEX_SAMP");
+				dump_hex(texsamp, 4, level+1);
+				texsamp += 4;
 			}
 		}
 		break;
 	}
 	case TEX_CONST: {
 		uint32_t *texconst = (uint32_t *)contents;
+
 		for (i = 0; i < num_unit; i++) {
 			/* work-around to reduce noise for opencl blob which always
 			 * writes the max # regardless of # of textures used
@@ -1522,6 +1555,14 @@ static void cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
 				}
 				dump_hex(texconst, 12, level+1);
 				texconst += 12;
+			} else if ((600 <= gpu_id) && (gpu_id < 700)) {
+				dump_domain(texconst, 16, level+2, "A6XX_TEX_CONST");
+				if (dump_textures) {
+					uint64_t addr = (((uint64_t)texconst[5] & 0x1ffff) << 32) | texconst[4];
+					dump_gpuaddr_size(addr, level-2, hostlen(addr) / 4, 3);
+				}
+				dump_hex(texconst, 16, level+1);
+				texconst += 16;
 			}
 		}
 		break;
@@ -2152,8 +2193,18 @@ static void load_group(unsigned group_id, int level)
 
 static void load_all_groups(int level)
 {
+	/* sanity check, we should never recursively hit recursion here, and if
+	 * we do bad things happen:
+	 */
+	static bool loading_groups = false;
+	if (loading_groups) {
+		printf("ERROR: nothing in draw state should trigger recursively loading groups!\n");
+		return;
+	}
+	loading_groups = true;
 	for (unsigned i = 0; i < ARRAY_SIZE(state); i++)
 		load_group(i, level);
+	loading_groups = false;
 }
 
 static void cp_set_draw_state(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -2236,14 +2287,26 @@ static void cp_exec_cs_indirect(uint32_t *dwords, uint32_t sizedwords, int level
 	dump_register_summary(level);
 }
 
-static void cp_set_mode(uint32_t *dwords, uint32_t sizedwords, int level)
+static void cp_set_marker(uint32_t *dwords, uint32_t sizedwords, int level)
 {
-	/* just map this back to a5xx render_mode values for now.. */
-	if (dwords[0] == 0x1) {
-		render_mode = "BINNING";
-	} else {
-		render_mode = "DRAW";
-	}
+	static const char *modes[] = {
+		[0x0] = "MODE_0",
+		[0x1] = "BYPASS",
+		[0x2] = "BINNING",
+		[0x4] = "GMEM",
+		[0x5] = "BLIT2D",
+		[0x6] = "RESOLVE",
+		[0x7] = "MODE_7",
+		[0x8] = "MODE_8",
+		[0x9] = "MODE_9",
+		[0xa] = "MODE_a",
+		[0xb] = "MODE_b",
+		[0xc] = "MODE_c",
+		[0xd] = "MODE_d",
+		[0xe] = "MODE_e",
+		[0xf] = "MODE_f",
+	};
+	render_mode = modes[dwords[0] & 0xf];
 }
 
 static void cp_set_render_mode(uint32_t *dwords, uint32_t sizedwords, int level)
@@ -2444,10 +2507,10 @@ static const struct {
 		/* for a6xx */
 #define CP_LOAD_STATE6_GEOM 0x32
 #define CP_LOAD_STATE6_FRAG 0x34
-#define CP_SET_MODE 0x63
+#define CP_SET_MARKER 0x65
 		CP(LOAD_STATE6_GEOM, cp_load_state),
 		CP(LOAD_STATE6_FRAG, cp_load_state),
-		CP(SET_MODE, cp_set_mode),
+		CP(SET_MARKER, cp_set_marker),
 };
 
 
