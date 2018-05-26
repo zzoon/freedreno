@@ -2359,63 +2359,31 @@ static void cp_context_reg_bunch(uint32_t *dwords, uint32_t sizedwords, int leve
 	summary = saved_summary;
 }
 
-#define CP(x, fxn, ...)   [CP_ ## x] = { fxn, ##__VA_ARGS__ }
+#define CP(x, fxn, ...)   { "CP_" #x, fxn, ##__VA_ARGS__ }
 static const struct type3_op {
+	const char *name;
 	void (*fxn)(uint32_t *dwords, uint32_t sizedwords, int level);
 	struct {
 		bool load_all_groups;
 	} options;
-} type3_op[0xff] = {
-		CP(ME_INIT, NULL),
+} type3_op[] = {
 		CP(NOP, cp_nop),
 		CP(INDIRECT_BUFFER, cp_indirect),
 		CP(INDIRECT_BUFFER_PFD, cp_indirect),
 		CP(WAIT_FOR_IDLE, cp_wfi),
-		CP(WAIT_REG_MEM, NULL),
-		CP(WAIT_REG_EQ, NULL),
-		CP(WAIT_REG_GTE, NULL),
-		CP(WAIT_UNTIL_READ, NULL),
-		CP(WAIT_IB_PFD_COMPLETE, NULL),
 		CP(REG_RMW, cp_rmw),
 		CP(REG_TO_MEM, cp_reg_to_mem),
 		CP(MEM_WRITE, cp_mem_write),
-		CP(MEM_WRITE_CNTR, NULL),
-		CP(COND_EXEC, NULL),
-		CP(COND_WRITE, NULL),
 		CP(EVENT_WRITE, cp_event_write),
-		CP(EVENT_WRITE_SHD, NULL),
-		CP(EVENT_WRITE_CFL, NULL),
-		CP(EVENT_WRITE_ZPD, NULL),
 		CP(RUN_OPENCL, cp_run_cl),
 		CP(DRAW_INDX, cp_draw_indx, {.load_all_groups=true}),
 		CP(DRAW_INDX_2, cp_draw_indx_2, {.load_all_groups=true}),
-		CP(DRAW_INDX_BIN, NULL),
-		CP(DRAW_INDX_2_BIN, NULL),
-		CP(VIZ_QUERY, NULL),
-		CP(SET_STATE, NULL),
 		CP(SET_CONSTANT, cp_set_const),
-		CP(IM_LOAD, NULL),
 		CP(IM_LOAD_IMMEDIATE, cp_im_loadi),
-		CP(LOAD_CONSTANT_CONTEXT, NULL),
-		CP(INVALIDATE_STATE, NULL),
-		CP(SET_SHADER_BASES, NULL),
-		CP(SET_BIN_MASK, NULL),
-		CP(SET_BIN_SELECT, NULL),
-		CP(CONTEXT_UPDATE, NULL),
-		CP(INTERRUPT, NULL),
-		CP(IM_STORE, NULL),
-		CP(SET_PROTECTED_MODE, NULL),
 		CP(WIDE_REG_WRITE, cp_wide_reg_write),
-
-		/* for a20x */
-		//CP(SET_BIN_BASE_OFFSET, NULL),
-
-		/* for a22x */
-		CP(SET_DRAW_INIT_FLAGS, NULL),
 
 		/* for a3xx */
 		CP(LOAD_STATE, cp_load_state),
-		CP(SET_BIN_DATA, NULL),
 		CP(SET_BIN, cp_set_bin),
 
 		/* for a4xx */
@@ -2433,9 +2401,6 @@ static const struct type3_op {
 		CP(DRAW_INDX_INDIRECT, cp_draw_indx_indirect, {.load_all_groups=true}),
 
 		/* for a6xx */
-#define CP_LOAD_STATE6_GEOM 0x32
-#define CP_LOAD_STATE6_FRAG 0x34
-#define CP_SET_MARKER 0x65
 		CP(LOAD_STATE6_GEOM, cp_load_state),
 		CP(LOAD_STATE6_FRAG, cp_load_state),
 		CP(SET_MARKER, cp_set_marker),
@@ -2450,9 +2415,15 @@ static struct type3_op *get_type3_op(unsigned opc)
 	static const struct type3_op dummy_op = {
 		.fxn = noop_fxn,
 	};
-	struct type3_op *op = &type3_op[opc];
-	if (op->fxn)
-		return op;
+	const char *name = rnn_enumname(rnn, "adreno_pm4_type3_packets", opc);
+
+	if (!name)
+		return &dummy_op;
+
+	for (unsigned i = 0; i < ARRAY_SIZE(type3_op); i++)
+		if (!strcmp(name, type3_op[i].name))
+			return &type3_op[i];
+
 	return &dummy_op;
 }
 
