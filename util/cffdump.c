@@ -47,7 +47,6 @@
 /* originally based on kernel recovery dump code: */
 #include "adreno_common.xml.h"
 #include "adreno_pm4.xml.h"
-#include "a2xx.xml.h"  /* TODO remove fmt_name */
 
 typedef enum {
 	true = 1, false = 0,
@@ -133,72 +132,6 @@ static const char *levels[] = {
 		"x",
 		"x",
 		"x",
-};
-
-#define NAME(x)	[x] = #x
-
-static const char *fmt_name[] = {
-		NAME(FMT_1_REVERSE),
-		NAME(FMT_1),
-		NAME(FMT_8),
-		NAME(FMT_1_5_5_5),
-		NAME(FMT_5_6_5),
-		NAME(FMT_6_5_5),
-		NAME(FMT_8_8_8_8),
-		NAME(FMT_2_10_10_10),
-		NAME(FMT_8_A),
-		NAME(FMT_8_B),
-		NAME(FMT_8_8),
-		NAME(FMT_Cr_Y1_Cb_Y0),
-		NAME(FMT_Y1_Cr_Y0_Cb),
-		NAME(FMT_5_5_5_1),
-		NAME(FMT_8_8_8_8_A),
-		NAME(FMT_4_4_4_4),
-		NAME(FMT_10_11_11),
-		NAME(FMT_11_11_10),
-		NAME(FMT_DXT1),
-		NAME(FMT_DXT2_3),
-		NAME(FMT_DXT4_5),
-		NAME(FMT_24_8),
-		NAME(FMT_24_8_FLOAT),
-		NAME(FMT_16),
-		NAME(FMT_16_16),
-		NAME(FMT_16_16_16_16),
-		NAME(FMT_16_EXPAND),
-		NAME(FMT_16_16_EXPAND),
-		NAME(FMT_16_16_16_16_EXPAND),
-		NAME(FMT_16_FLOAT),
-		NAME(FMT_16_16_FLOAT),
-		NAME(FMT_16_16_16_16_FLOAT),
-		NAME(FMT_32),
-		NAME(FMT_32_32),
-		NAME(FMT_32_32_32_32),
-		NAME(FMT_32_FLOAT),
-		NAME(FMT_32_32_FLOAT),
-		NAME(FMT_32_32_32_32_FLOAT),
-		NAME(FMT_32_AS_8),
-		NAME(FMT_32_AS_8_8),
-		NAME(FMT_16_MPEG),
-		NAME(FMT_16_16_MPEG),
-		NAME(FMT_8_INTERLACED),
-		NAME(FMT_32_AS_8_INTERLACED),
-		NAME(FMT_32_AS_8_8_INTERLACED),
-		NAME(FMT_16_INTERLACED),
-		NAME(FMT_16_MPEG_INTERLACED),
-		NAME(FMT_16_16_MPEG_INTERLACED),
-		NAME(FMT_DXN),
-		NAME(FMT_8_8_8_8_AS_16_16_16_16),
-		NAME(FMT_DXT1_AS_16_16_16_16),
-		NAME(FMT_DXT2_3_AS_16_16_16_16),
-		NAME(FMT_DXT4_5_AS_16_16_16_16),
-		NAME(FMT_2_10_10_10_AS_16_16_16_16),
-		NAME(FMT_10_11_11_AS_16_16_16_16),
-		NAME(FMT_11_11_10_AS_16_16_16_16),
-		NAME(FMT_32_32_32_FLOAT),
-		NAME(FMT_DXT3A),
-		NAME(FMT_DXT5A),
-		NAME(FMT_CTX1),
-		NAME(FMT_DXT3A_AS_1_1_1_1),
 };
 
 static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level);
@@ -340,13 +273,6 @@ static void parse_dword_addr(uint32_t dword, uint32_t *gpuaddr,
 	*gpuaddr = dword & ~mask;
 	*flags   = dword & mask;
 }
-
-
-#define INVALID_RB_CMD 0xaaaaaaaa
-
-/* CP timestamp register */
-#define	REG_CP_TIMESTAMP		 REG_SCRATCH_REG0
-
 
 static uint32_t type0_reg_vals[0xffff + 1];
 static uint8_t type0_reg_rewritten[sizeof(type0_reg_vals)/8];  /* written since last draw */
@@ -1695,7 +1621,7 @@ static void dump_tex_const(uint32_t *dwords, uint32_t sizedwords, uint32_t val, 
 			swiznames[(swiz >> 6) & 0x7], swiznames[(swiz >> 9) & 0x7]);
 	printf("%saddr=%08x (flags=%03x), size=%dx%d, pitch=%d, format=%s\n",
 			levels[level+1], gpuaddr, flags, w, h, p,
-			fmt_name[flags & 0xf]);
+			rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0xf));
 	printf("%smipaddr=%08x (flags=%03x)\n", levels[level+1],
 			mip_gpuaddr, mip_flags);
 }
@@ -1709,9 +1635,11 @@ static void dump_shader_const(uint32_t *dwords, uint32_t sizedwords, uint32_t va
 		parse_dword_addr(dwords[i++], &gpuaddr, &flags, 0xf);
 		void *addr = hostptr(gpuaddr);
 		if (addr) {
+			const char * fmt =
+				rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0xf);
 			uint32_t size = dwords[i++];
 			printf("%saddr=%08x, size=%d, format=%s\n", levels[level+1],
-					gpuaddr, size, fmt_name[flags & 0xf]);
+					gpuaddr, size, fmt);
 			// TODO maybe dump these as bytes instead of dwords?
 			size = (size + 3) / 4; // for now convert to dwords
 			dump_hex(addr, min(size, 64), level + 1);
