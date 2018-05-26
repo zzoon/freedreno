@@ -2360,7 +2360,7 @@ static void cp_context_reg_bunch(uint32_t *dwords, uint32_t sizedwords, int leve
 }
 
 #define CP(x, fxn, ...)   [CP_ ## x] = { fxn, ##__VA_ARGS__ }
-static const struct {
+static const struct type3_op {
 	void (*fxn)(uint32_t *dwords, uint32_t sizedwords, int level);
 	struct {
 		bool load_all_groups;
@@ -2441,6 +2441,20 @@ static const struct {
 		CP(SET_MARKER, cp_set_marker),
 };
 
+static void noop_fxn(uint32_t *dwords, uint32_t sizedwords, int level)
+{
+}
+
+static struct type3_op *get_type3_op(unsigned opc)
+{
+	static const struct type3_op dummy_op = {
+		.fxn = noop_fxn,
+	};
+	struct type3_op *op = &type3_op[opc];
+	if (op->fxn)
+		return op;
+	return &dummy_op;
+}
 
 static inline uint pm4_calc_odd_parity_bit(uint val)
 {
@@ -2553,7 +2567,8 @@ static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level)
 		} else if (pkt_is_type3(dwords[0])) {
 			count = type3_pkt_size(dwords[0]) + 1;
 			val = cp_type3_opcode(dwords[0]);
-			if (type3_op[val].options.load_all_groups)
+			struct type3_op *op = get_type3_op(val);
+			if (op->options.load_all_groups)
 				load_all_groups(level+1);
 			printl(3, "t3");
 			init();
@@ -2566,14 +2581,14 @@ static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level)
 				if (name)
 					dump_domain(dwords+1, count-1, level+2, name);
 			}
-			if (type3_op[val].fxn)
-				type3_op[val].fxn(dwords+1, count-1, level+1);
+			op->fxn(dwords+1, count-1, level+1);
 			if (!quiet(2))
 				dump_hex(dwords, count, level+1);
 		} else if (pkt_is_type7(dwords[0])) {
 			count = type7_pkt_size(dwords[0]) + 1;
 			val = cp_type7_opcode(dwords[0]);
-			if (type3_op[val].options.load_all_groups)
+			struct type3_op *op = get_type3_op(val);
+			if (op->options.load_all_groups)
 				load_all_groups(level+1);
 			printl(3, "t7");
 			init();
@@ -2593,8 +2608,7 @@ static void dump_commands(uint32_t *dwords, uint32_t sizedwords, int level)
 					dump_domain(dwords+1, count-1, level+2, name);
 				}
 			}
-			if (type3_op[val].fxn)
-				type3_op[val].fxn(dwords+1, count-1, level+1);
+			op->fxn(dwords+1, count-1, level+1);
 			if (!quiet(2))
 				dump_hex(dwords, count, level+1);
 		} else if (pkt_is_type2(dwords[0])) {
