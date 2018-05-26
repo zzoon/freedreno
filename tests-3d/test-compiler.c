@@ -21,8 +21,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include <GLES3/gl31.h>
+#include <GLES3/gl32.h>
 #include "test-util-3d.h"
+
+#define HAS_GLES31
 
 int openfile(const char *fmt, int i)
 {
@@ -65,22 +67,23 @@ const char *readfile(int fd)
 	return strdup(text);
 }
 
-static void compile_shader(GLint program, int fd, GLenum type)
+static void compile_shader(GLint program, int fd, const char *stage_name, GLenum type)
 {
 	GLuint shader;
 	GLint ret;
 	const char *source = readfile(fd);
 
-	DEBUG_MSG("shader: \n%s\n", source);
+	DEBUG_MSG("%s shader:\n%s", stage_name, source);
 
 	GCHK(shader = glCreateShader(type));
 	GCHK(glShaderSource(shader, 1, &source, NULL));
 	GCHK(glCompileShader(shader));
 	GCHK(glGetShaderiv(shader, GL_COMPILE_STATUS, &ret));
+	DEBUG_MSG("ret=%d", ret);
 	if (!ret) {
 		char *log;
 
-		ERROR_MSG("%d shader compilation failed!:", type);
+		ERROR_MSG("%s shader compilation failed!:", stage_name);
 		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &ret);
 
 		if (ret > 1) {
@@ -90,6 +93,8 @@ static void compile_shader(GLint program, int fd, GLenum type)
 		}
 		exit(-1);
 	}
+
+	DEBUG_MSG("%s shader compilation succeeded!", stage_name);
 
 	GCHK(glAttachShader(program, shader));
 }
@@ -136,8 +141,13 @@ static int setup_tex2d(int program, const char *name, int unit, int image)
 
 		glUniform1i(handle, unit);
 
+		/* clear any errors, just in case: */
+		while (glGetError() != GL_NO_ERROR) {}
+
+#ifdef HAS_GLES31
 		if (image)
-			glBindImageTexture(unit, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8);
+			GCHK(glBindImageTexture(unit, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8));
+#endif
 
 		unit++;
 	}
@@ -162,12 +172,18 @@ static int setup_tex3d(int program, const char *name, int unit, int image)
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 32, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, getpix(32 * 32 * 32));
+		glTexStorage3D(GL_TEXTURE_3D, 1, GL_RGBA8, 32, 32, 32);
+		glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 32, 32, 32, GL_RGBA, GL_UNSIGNED_BYTE, getpix(32 * 32 * 32 * 4));
 
 		glUniform1i(handle, unit);
 
+		/* clear any errors, just in case: */
+		while (glGetError() != GL_NO_ERROR) {}
+
+#ifdef HAS_GLES31
 		if (image)
-			glBindImageTexture(unit, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32I);
+			GCHK(glBindImageTexture(unit, tex, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RGBA8));
+#endif
 
 		unit++;
 	}
@@ -236,6 +252,7 @@ static void setup_textures(GLint program)
 
 static void setup_ssbo(GLint program, const char *name)
 {
+#ifdef HAS_GLES31
 	GLuint ssbo = 0, block_index;
 	static int cnt = 0;
 
@@ -246,16 +263,20 @@ static void setup_ssbo(GLint program, const char *name)
 	DEBUG_MSG("SSBO: %s at %u", name, block_index);
 
 	int sz = 33 * ++cnt;
-	int buf[sz];
+//	int buf[sz];
+	static char buf[0x100000];
 
 	glGenBuffers(1, &ssbo);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(buf), buf, GL_STATIC_DRAW);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, block_index, ssbo);
+#endif
 }
 
-int test_compiler(int n)
+static void setup(void);
+
+static int test_compiler(int n)
 {
 	static GLfloat v[ARRAY_SIZE(attrnames)][NVERT * 4];
 	static int nattr = 0;
@@ -272,6 +293,7 @@ int test_compiler(int n)
 	if ((vert_fd < 0) || (frag_fd < 0)) {
 		if (cs_fd >= 0) {
 			RD_START("compiler-compute", "%d", n);
+			setup();
 			program = get_compute_program(readfile(cs_fd));
 			goto link;
 		}
@@ -280,14 +302,16 @@ int test_compiler(int n)
 
 	RD_START("compiler", "%d", n);
 
+	setup();
+
 	program = get_program(readfile(vert_fd), readfile(frag_fd));
 
 	if (tcs_fd >= 0)
-		compile_shader(program, tcs_fd, 0x8E88/*GL_TESS_CONTROL_SHADER*/);
+		compile_shader(program, tcs_fd, "tcs",  0x8E88/*GL_TESS_CONTROL_SHADER*/);
 	if (tes_fd >= 0)
-		compile_shader(program, tes_fd, 0x8E87/*GL_TESS_EVALUATION_SHADER*/);
+		compile_shader(program, tes_fd, "tes", 0x8E87/*GL_TESS_EVALUATION_SHADER*/);
 	if (gs_fd >= 0)
-		compile_shader(program, gs_fd, 0x8DD9/*GL_GEOMETRY_SHADER*/);
+		compile_shader(program, gs_fd, "geom", 0x8DD9/*GL_GEOMETRY_SHADER*/);
 
 	for (i = 0; i < ARRAY_SIZE(attrnames); i++) {
 		glBindAttribLocation(program, i, attrnames[i]);
@@ -349,12 +373,15 @@ link:
 	ECHK(eglSwapBuffers(display, surface));
 	GCHK(glFlush());
 
+	ECHK(eglDestroySurface(display, surface));
+	ECHK(eglTerminate(display));
+
 	RD_END();
 
 	return 0;
 }
 
-int main(int argc, char *argv[])
+static void setup(void)
 {
 	GLint width, height;
 	EGLint pbuffer_attribute_list[] = {
@@ -379,7 +406,6 @@ int main(int argc, char *argv[])
 	EGLConfig config;
 	EGLint num_config;
 	EGLContext context;
-	TEST_START();
 
 	display = get_display();
 
@@ -399,6 +425,11 @@ int main(int argc, char *argv[])
 	/* connect the context to the surface */
 	ECHK(eglMakeCurrent(display, surface, surface, context));
 	GCHK(glFlush());
+}
+
+int main(int argc, char *argv[])
+{
+	TEST_START();
 
 	if (__test == -1) {
 		int i;
@@ -413,9 +444,6 @@ int main(int argc, char *argv[])
 			exit(42);
 		}
 	}
-
-	ECHK(eglDestroySurface(display, surface));
-	ECHK(eglTerminate(display));
 
 	return 0;
 }

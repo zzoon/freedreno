@@ -588,6 +588,7 @@ get_shader(GLenum stage, const char *stage_name, const char *source)
 	GCHK(glCompileShader(shader));
 
 	GCHK(glGetShaderiv(shader, GL_COMPILE_STATUS, &ret));
+	DEBUG_MSG("ret=%d", ret);
 	if (!ret) {
 		char *log;
 
