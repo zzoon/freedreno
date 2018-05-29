@@ -67,7 +67,7 @@ static char * get_vs(int cnt)
 	ptr += sprintf(ptr, "  vec4 val = aPosition;\n");
 	ptr += sprintf(ptr, "  vPosition = aPosition;\n");
 	for (i = 0; i < cnt; i++)
-		ptr += sprintf(ptr, "  val = texture2D(uTex, val.xy);\n");
+		ptr += sprintf(ptr, "  val = texture2D(uTex, val.xy) * %f;\n", ((float)(i+1))/2.0);
 	ptr += sprintf(ptr, "  gl_Position = val;\n");
 	ptr += sprintf(ptr, "}\n");
 
@@ -87,7 +87,7 @@ static char * get_fs(int cnt)
 	ptr += sprintf(ptr, "{\n");
 	ptr += sprintf(ptr, "  vec4 val = vPosition;\n");
 	for (i = 0; i < cnt; i++)
-		ptr += sprintf(ptr, "  val = texture2D(uTex, val.xy);\n");
+		ptr += sprintf(ptr, "  val = texture2D(uTex, val.xy) * %f;\n", ((float)(i+1))/2.0);
 	ptr += sprintf(ptr, "  gl_FragColor = val;\n");
 	ptr += sprintf(ptr, "}\n");
 
@@ -195,6 +195,9 @@ static void test(int vsz, int fsz)
 int main(int argc, char *argv[])
 {
 	TEST_START();
+	TEST(test(0, 0));
+	TEST(test(0, 1));
+	TEST(test(1, 0));
 	TEST(test(0, 2));
 	TEST(test(2, 0));
 	TEST(test(2, 2));
