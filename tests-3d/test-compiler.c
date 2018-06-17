@@ -276,6 +276,8 @@ static void setup_ssbo(GLint program, const char *name)
 
 static void setup(void);
 
+static unsigned samples;
+
 static int test_compiler(int n)
 {
 	static GLfloat v[ARRAY_SIZE(attrnames)][NVERT * 4];
@@ -300,7 +302,13 @@ static int test_compiler(int n)
 		return -1;
 	}
 
-	RD_START("compiler", "%d", n);
+	samples = env2u("MSAA");
+
+	if (samples) {
+		RD_START("compiler-msaa", "%d (samples=%d)", n, samples);
+	} else {
+		RD_START("compiler", "%d", n);
+	}
 
 	setup();
 
@@ -397,6 +405,7 @@ static void setup(void)
 		EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_DEPTH_SIZE, 8,
+		EGL_SAMPLES, samples,
 		EGL_NONE
 	};
 	const EGLint context_attribute_list[] = {

@@ -52,14 +52,6 @@ static const EGLint context_attribute_list[] = {
 	EGL_NONE
 };
 
-static inline uint32_t env2u(const char *envvar)
-{
-	char *str = getenv(envvar);
-	if (str)
-		return strtoul(str, NULL, 0);
-	return 0;
-}
-
 static EGLDisplay display;
 static EGLConfig config;
 static EGLint num_config;

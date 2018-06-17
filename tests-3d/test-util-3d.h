@@ -753,4 +753,12 @@ link_program(GLuint program)
 #endif
 }
 
+static inline unsigned int env2u(const char *name)
+{
+	const char *str = getenv(name);
+	if (!str)
+		return 0;
+	return strtol(str, NULL, 0);
+}
+
 #endif /* TEST_UTIL_3D_H_ */
