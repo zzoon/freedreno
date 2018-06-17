@@ -162,19 +162,35 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	if (mode)
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_STENCIL_TEXTURE_MODE, mode));
 	GCHK(glTexImage2D(GL_TEXTURE_2D, 0, ifmt, width, height, 0, fmt, type, 0));
 	switch (fmt) {
 	case GL_DEPTH_COMPONENT:
+		GCHK(glEnable(GL_DEPTH_TEST));
 		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, fbotex, 0));
 		break;
 	case GL_DEPTH_STENCIL:
+		GCHK(glEnable(GL_DEPTH_TEST));
+		GCHK(glEnable(GL_STENCIL_TEST));
 		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, fbotex, 0));
 		break;
 	default:
 		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbotex, 0));
 		break;
+	}
+
+	if ((fmt == GL_DEPTH_COMPONENT) || (fmt == GL_DEPTH_STENCIL)) {
+		GLuint colortex;
+
+		/* also create a dummy color attachment: */
+		GCHK(glGenTextures(1, &colortex));
+		GCHK(glBindTexture(GL_TEXTURE_2D, colortex));
+		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+		GCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, 0));
+
+		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colortex, 0));
 	}
 
 	DEBUG_MSG("status=%04x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
@@ -188,6 +204,8 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 
 	/* now set up our uniform. */
 	GCHK(uniform_location = glGetUniformLocation(program, "uColor"));
+
+	GCHK(glEnable(GL_BLEND));
 
 	GCHK(glDrawBuffers(1, mrt_bufs));
 
@@ -207,6 +225,8 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 
 	GCHK(glActiveTexture(GL_TEXTURE0));
 	GCHK(glBindTexture(GL_TEXTURE_2D, fbotex));
+	if (mode)
+		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_STENCIL_TEXTURE_MODE, mode));
 
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
 	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
