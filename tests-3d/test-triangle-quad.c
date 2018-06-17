@@ -33,7 +33,7 @@ static const EGLint context_attribute_list[] = {
 	EGL_NONE
 };
 
-void test_triangle_quad(int samples, int depth, int stencil)
+void test_triangle_quad(int w, int h, int samples, int depth, int stencil)
 {
 	EGLDisplay display;
 	EGLConfig config;
@@ -86,7 +86,7 @@ void test_triangle_quad(int samples, int depth, int stencil)
 	GLfloat triangle_color[] = {0.0, 1.0, 0.0, 1.0 };
 	GLfloat quad_color[] = {1.0, 0.0, 0.0, 1.0 };
 
-	RD_START("triangle-quad", "samples=%d, depth=%d, stencil=%d", samples, depth, stencil);
+	RD_START("triangle-quad", "%dx%d: samples=%d, depth=%d, stencil=%d", w, h, samples, depth, stencil);
 
 	display = get_display();
 
@@ -97,7 +97,7 @@ void test_triangle_quad(int samples, int depth, int stencil)
 	/* create an EGL rendering context */
 	ECHK(context = eglCreateContext(display, config, EGL_NO_CONTEXT, context_attribute_list));
 
-	surface = make_window(display, config, 400, 240);
+	surface = make_window(display, config, w, h);
 
 	ECHK(eglQuerySurface(display, surface, EGL_WIDTH, &width));
 	ECHK(eglQuerySurface(display, surface, EGL_HEIGHT, &height));
@@ -119,9 +119,36 @@ void test_triangle_quad(int samples, int depth, int stencil)
 
 	GCHK(glViewport(0, 0, width, height));
 
+	unsigned clear_mask = 0;
+
 	/* clear the color buffer */
+	clear_mask |= GL_COLOR_BUFFER_BIT;
 	GCHK(glClearColor(0.3125, 0.3125, 0.3125, 1.0));
-	GCHK(glClear(GL_COLOR_BUFFER_BIT));
+
+	if (depth != EGL_DONT_CARE) {
+		clear_mask |= GL_DEPTH_BUFFER_BIT;
+		GCHK(glClearDepthf(0.13));
+	}
+
+	if (stencil != EGL_DONT_CARE) {
+		clear_mask |= GL_STENCIL_BUFFER_BIT;
+		GCHK(glClearStencil(9));
+	}
+
+	GCHK(glClear(clear_mask));
+
+	if (depth != EGL_DONT_CARE) {
+		GCHK(glDepthFunc(GL_ALWAYS));
+		GCHK(glEnable(GL_DEPTH_TEST));
+	}
+
+	if (stencil != EGL_DONT_CARE) {
+		GCHK(glStencilFunc(GL_ALWAYS, 0x128, 0x34));
+		GCHK(glStencilOp(GL_REPLACE, GL_REPLACE, GL_REPLACE));
+		GCHK(glEnable(GL_STENCIL_TEST));
+	}
+
+	GCHK(glEnable(GL_BLEND));
 
 	GCHK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vertices));
 	GCHK(glEnableVertexAttribArray(0));
@@ -131,6 +158,9 @@ void test_triangle_quad(int samples, int depth, int stencil)
 
 	GCHK(glUniform4fv(uniform_location, 1, triangle_color));
 	GCHK(glDrawArrays(GL_TRIANGLES, 0, 3));
+
+	GCHK(glFlush());
+	readback();
 
 	GCHK(glUniform4fv(uniform_location, 1, quad_color));
 	GCHK(glDrawArrays(GL_TRIANGLE_STRIP, 3, 4));
@@ -147,13 +177,15 @@ int main(int argc, char *argv[])
 {
 	static const int samples[] = { 0, 2, 4, };
 	int i;
-	TEST_START();
 
+	TEST_START();
 	for (i = 0;  i < ARRAY_SIZE(samples); i++) {
 		/* seems like, similar to a2xx, we only have z16 and z24s8: */
-		TEST(test_triangle_quad(samples[i], EGL_DONT_CARE, EGL_DONT_CARE));
-		TEST(test_triangle_quad(samples[i], 16, EGL_DONT_CARE));
-		TEST(test_triangle_quad(samples[i], 24, 8));
+		TEST(test_triangle_quad( 64,  64, samples[i], EGL_DONT_CARE, EGL_DONT_CARE));
+		TEST(test_triangle_quad( 64,  64, samples[i], 16, EGL_DONT_CARE));
+		TEST(test_triangle_quad( 64,  64, samples[i], 24, 8));
+		TEST(test_triangle_quad(128,  64, samples[i], 24, 8));
+		TEST(test_triangle_quad( 64, 128, samples[i], 24, 8));
 	}
 	TEST_END();
 
