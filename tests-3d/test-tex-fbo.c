@@ -91,15 +91,32 @@ const char *vertex_shader_source_sam =
 	"}                            \n";
 const char *fragment_shader_source_sam =
 	"#version 300 es              \n"
-	"precision mediump float;     \n"
+	"precision highp float;       \n"
+	"precision highp int;         \n"
 	"                             \n"
+	"uniform vec2 size;           \n"
 	"uniform sampler2D uTexture;  \n"
 	"in vec2 vTexCoord;           \n"
 	"out vec4 gl_FragColor;       \n"
 	"                             \n"
 	"void main()                  \n"
 	"{                            \n"
-	"    gl_FragColor = texture(uTexture, vTexCoord) * vec4(0.1, 0.2, 0.3, 0.4);\n"
+	"    gl_FragColor = texelFetch(uTexture, ivec2(vTexCoord * size), 0);\n"
+	"}                            \n";
+const char *fragment_shader_source_sam_ms =
+	"#version 300 es              \n"
+	"precision highp float;       \n"
+	"precision highp int;         \n"
+	"                             \n"
+	"uniform vec2 size;           \n"
+	"uniform int sample_nr;       \n"
+	"uniform sampler2DMS uTexture;\n"
+	"in vec2 vTexCoord;           \n"
+	"out vec4 gl_FragColor;       \n"
+	"                             \n"
+	"void main()                  \n"
+	"{                            \n"
+	"    gl_FragColor = texelFetch(uTexture, ivec2(vTexCoord * size), sample_nr);\n"
 	"}                            \n";
 
 static const char *modename(GLenum mode)
@@ -113,7 +130,7 @@ static const char *modename(GLenum mode)
 
 /* Run through multiple variants to detect mrt settings
  */
-static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, GLenum mode)
+static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, GLenum mode, unsigned samples)
 {
 	GLint width, height;
 	GLuint fbo, fbotex;
@@ -127,8 +144,8 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 			 0.45,  0.75, 0.1 };
 	EGLSurface surface;
 
-	RD_START("tex-fbo", "%dx%d, ifmt=%s, fmt=%s, type=%s, mode=%s", w, h,
-			formatname(fmt), formatname(ifmt), typename(type), modename(mode));
+	RD_START("tex-fbo", "%dx%d, ifmt=%s, fmt=%s, type=%s, mode=%s, samples=%u", w, h,
+			formatname(fmt), formatname(ifmt), typename(type), modename(mode), samples);
 
 	display = get_display();
 
@@ -157,24 +174,32 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 	GCHK(glGenTextures(1, &fbotex));
 	GCHK(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
 
-	GCHK(glBindTexture(GL_TEXTURE_2D, fbotex));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	GCHK(glTexImage2D(GL_TEXTURE_2D, 0, ifmt, width, height, 0, fmt, type, 0));
+	GLenum target = GL_TEXTURE_2D;
+	if (samples > 1)
+		target = GL_TEXTURE_2D_MULTISAMPLE;
+
+	GCHK(glBindTexture(target, fbotex));
+	if (samples > 1) {
+		GCHK(glTexStorage2DMultisample(target, samples, ifmt, width, height, GL_FALSE));
+	} else {
+		GCHK(glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+		GCHK(glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+		GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+		GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+		GCHK(glTexImage2D(target, 0, ifmt, width, height, 0, fmt, type, 0));
+	}
 	switch (fmt) {
 	case GL_DEPTH_COMPONENT:
 		GCHK(glEnable(GL_DEPTH_TEST));
-		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, fbotex, 0));
+		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, target, fbotex, 0));
 		break;
 	case GL_DEPTH_STENCIL:
 		GCHK(glEnable(GL_DEPTH_TEST));
 		GCHK(glEnable(GL_STENCIL_TEST));
-		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, fbotex, 0));
+		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, target, fbotex, 0));
 		break;
 	default:
-		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbotex, 0));
+		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, fbotex, 0));
 		break;
 	}
 
@@ -183,14 +208,18 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 
 		/* also create a dummy color attachment: */
 		GCHK(glGenTextures(1, &colortex));
-		GCHK(glBindTexture(GL_TEXTURE_2D, colortex));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-		GCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, 0));
+		GCHK(glBindTexture(target, colortex));
+		if (samples > 1) {
+			GCHK(glTexStorage2DMultisample(target, samples, GL_R8, width, height, GL_FALSE));
+		} else {
+			GCHK(glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+			GCHK(glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+			GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+			GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+			GCHK(glTexImage2D(target, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, 0));
+		}
 
-		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colortex, 0));
+		GCHK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, colortex, 0));
 	}
 
 	DEBUG_MSG("status=%04x", glCheckFramebufferStatus(GL_FRAMEBUFFER));
@@ -219,26 +248,37 @@ static void test(unsigned w, unsigned h, GLenum ifmt, GLenum fmt, GLenum type, G
 	/* switch back to back buffer: */
 	GCHK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 
-	program = get_program(vertex_shader_source_sam, fragment_shader_source_sam);
+	if (samples > 1) {
+		program = get_program(vertex_shader_source_sam, fragment_shader_source_sam_ms);
+	} else {
+		program = get_program(vertex_shader_source_sam, fragment_shader_source_sam);
+	}
 	GCHK(glBindAttribLocation(program, 0, "aPosition"));
 	link_program(program);
 
 	GCHK(glActiveTexture(GL_TEXTURE0));
-	GCHK(glBindTexture(GL_TEXTURE_2D, fbotex));
+	GCHK(glBindTexture(target, fbotex));
 	if (mode)
-		GCHK(glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_STENCIL_TEXTURE_MODE, mode));
+		GCHK(glTexParameteri(target, GL_DEPTH_STENCIL_TEXTURE_MODE, mode));
 
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
-	GCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT));
+	if (samples <= 1) {
+		GCHK(glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+		GCHK(glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+		GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_REPEAT));
+		GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_T, GL_REPEAT));
+		GCHK(glTexParameteri(target, GL_TEXTURE_WRAP_R, GL_REPEAT));
+	}
 
 	GCHK(texture_handle = glGetUniformLocation(program, "uTexture"));
 	GCHK(glUniform1i(texture_handle, 0)); /* '0' refers to texture unit 0. */
 
 	GCHK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, vertices));
 	GCHK(glEnableVertexAttribArray(0));
+
+	/* now set up our uniform. */
+	GCHK(uniform_location = glGetUniformLocation(program, "size"));
+	GLfloat size[] =  {w, h};
+	GCHK(glUniform2fv(uniform_location, 1, size));
 
 	GCHK(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
@@ -332,18 +372,21 @@ int main(int argc, char *argv[])
 	TEST_START();
 	for (i = 0; i < ARRAY_SIZE(fmts); i++) {
 		if (fmts[i].fmt == GL_DEPTH_STENCIL) {
-			TEST(test(  32,   32, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, GL_DEPTH_COMPONENT));
-			TEST(test(  32,   32, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, GL_STENCIL_INDEX));
+			TEST(test(  32,   32, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, GL_DEPTH_COMPONENT, 0));
+			TEST(test(  32,   32, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, GL_STENCIL_INDEX, 0));
 		} else {
-			TEST(test(  32,   32, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
+			TEST(test(  32,   32, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
 		}
-//		TEST(test( 128,  128, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
-//		TEST(test( 256,  128, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
-//		TEST(test( 128,  256, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
-//		TEST(test( 333,  222, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
-//		TEST(test( 800,  600, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
-//		TEST(test(1920, 1080, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0));
+//		TEST(test( 128,  128, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
+//		TEST(test( 256,  128, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
+//		TEST(test( 128,  256, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
+//		TEST(test( 333,  222, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
+//		TEST(test( 800,  600, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
+//		TEST(test(1920, 1080, fmts[i].ifmt, fmts[i].fmt, fmts[i].type, 0, 0));
 	}
+	TEST(test(  32,   32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 0, 1));
+	TEST(test(  32,   32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 0, 2));
+	TEST(test(  32,   32, GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, 0, 4));
 	TEST_END();
 
 	return 0;
