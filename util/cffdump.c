@@ -2044,15 +2044,21 @@ static void cp_rmw(uint32_t *dwords, uint32_t sizedwords, int level)
 	reg_set(val, (reg_val(val) & and) | or);
 }
 
-static void cp_reg_to_mem(uint32_t *dwords, uint32_t sizedwords, int level)
+static void cp_reg_mem(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	uint32_t val = dwords[0] & 0xffff;
-	uint32_t cnt = 1 + ((dwords[0] >> 19) & 0x7ff);   /* not quite sure bitfield size */
-	uint32_t mem = dwords[0];
-	/* no real idea about the top too bits.. */
-	printl(3, "%sread: %s\n", levels[level], regname(val, 1));
-	printl(3, "%scount: %d\n", levels[level], cnt);
-	printl(3, "%sdest: %08x\n", levels[level], mem);
+	printl(3, "%sbase register: %s\n", levels[level], regname(val, 1));
+
+	if (quiet(2))
+		return;
+
+	uint64_t gpuaddr = dwords[1] | (((uint64_t)dwords[2]) << 32);
+	printf("%sgpuaddr:%016lx\n", levels[level], gpuaddr);
+	void *ptr = hostptr(gpuaddr);
+	if (ptr) {
+		uint32_t cnt = (dwords[0] >> 19) & 0x3ff;
+		dump_hex(ptr, cnt, level + 1);
+	}
 }
 
 struct draw_state {
@@ -2090,7 +2096,13 @@ static void load_group(unsigned group_id, int level)
 	if (!ds->count)
 		return;
 
+	printl(2, "%sgroup_id: %u\n", levels[level], group_id);
+	printl(2, "%scount: %d\n", levels[level], ds->count);
+	printl(2, "%saddr: %016llx\n", levels[level], ds->addr);
+
 	if (gpu_id >= 600) {
+		printl(2, "%senable_mask: 0x%x\n", levels[level], ds->enable_mask);
+
 		/* a6xx seems to be a bit more sophisticated, it can emit
 		 * different, potentially conflicting, state-groups for
 		 * binning pass vs draw.  So we need to figure out the
@@ -2109,13 +2121,10 @@ static void load_group(unsigned group_id, int level)
 		}
 
 		if (!(ds->enable_mask & mode)) {
+			printl(2, "%s\tskipped!\n\n", levels[level]);
 			return;
 		}
 	}
-
-	printl(2, "%sgroup_id: %u\n", levels[level], group_id);
-	printl(2, "%scount: %d\n", levels[level], ds->count);
-	printl(2, "%saddr: %016llx\n", levels[level], ds->addr);
 
 	if (ds->ptr) {
 		if (!quiet(2))
@@ -2385,7 +2394,8 @@ static const struct type3_op {
 		CP(INDIRECT_BUFFER_PFD, cp_indirect),
 		CP(WAIT_FOR_IDLE, cp_wfi),
 		CP(REG_RMW, cp_rmw),
-		CP(REG_TO_MEM, cp_reg_to_mem),
+		CP(REG_TO_MEM, cp_reg_mem),
+		CP(MEM_TO_REG, cp_reg_mem),  /* same layout as CP_REG_TO_MEM */
 		CP(MEM_WRITE, cp_mem_write),
 		CP(EVENT_WRITE, cp_event_write),
 		CP(RUN_OPENCL, cp_run_cl),
@@ -2400,6 +2410,7 @@ static const struct type3_op {
 		CP(SET_BIN, cp_set_bin),
 
 		/* for a4xx */
+		CP(LOAD_STATE4, cp_load_state),
 		CP(SET_DRAW_STATE, cp_set_draw_state),
 		CP(DRAW_INDX_OFFSET, cp_draw_indx_offset, {.load_all_groups=true}),
 		CP(EXEC_CS, cp_exec_cs),
