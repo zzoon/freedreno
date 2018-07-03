@@ -26,9 +26,6 @@
 
 #define PACKED __attribute__((__packed__))
 
-#include "adreno_common.xml.h"
-#include "a2xx.xml.h"
-
 
 /*
  * ALU instructions:
@@ -303,7 +300,7 @@ typedef enum {
 	SAMPLE_CENTER = 1,
 } instr_sample_loc_t;
 
-typedef enum a2xx_sq_surfaceformat instr_surf_fmt_t;
+typedef unsigned instr_surf_fmt_t;
 
 typedef struct PACKED {
 	/* dword0: */

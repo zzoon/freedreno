@@ -27,9 +27,6 @@
 #include <string.h>
 
 #include "disasm.h"
-#include "adreno_common.xml.h"
-#include "adreno_pm4.xml.h"
-#include "a2xx.xml.h"
 #include "instr-a2xx.h"
 
 static const char *levels[] = {
@@ -52,6 +49,8 @@ static const char *levels[] = {
 };
 
 enum debug_t debug;
+
+static struct rnn *rnn;
 
 /*
  * ALU instructions:
@@ -291,27 +290,6 @@ static int disasm_alu(uint32_t *dwords, uint32_t alu_off,
  * FETCH instructions:
  */
 
-struct {
-	const char *name;
-} fetch_types[0xff] = {
-#define TYPE(id) [id] = { #id }
-		TYPE(FMT_1_REVERSE),
-		TYPE(FMT_32_FLOAT),
-		TYPE(FMT_32_32_FLOAT),
-		TYPE(FMT_32_32_32_FLOAT),
-		TYPE(FMT_32_32_32_32_FLOAT),
-		TYPE(FMT_16),
-		TYPE(FMT_16_16),
-		TYPE(FMT_16_16_16_16),
-		TYPE(FMT_8),
-		TYPE(FMT_8_8),
-		TYPE(FMT_8_8_8_8),
-		TYPE(FMT_32),
-		TYPE(FMT_32_32),
-		TYPE(FMT_32_32_32_32),
-#undef TYPE
-};
-
 static void print_fetch_dst(uint32_t dst_reg, uint32_t dst_swiz)
 {
 	int i;
@@ -336,8 +314,10 @@ static void print_fetch_vtx(instr_fetch_t *fetch)
 	print_fetch_dst(vtx->dst_reg, vtx->dst_swiz);
 	printf(" = R%u.", vtx->src_reg);
 	printf("%c", chan_names[vtx->src_swiz & 0x3]);
-	if (fetch_types[vtx->format].name) {
-		printf(" %s", fetch_types[vtx->format].name);
+
+	const char *fmt = rnn_enumname(rnn, "a2xx_sq_surfaceformat", vtx->format);
+	if (fmt) {
+		printf(" %s", fmt);
 	} else  {
 		printf(" TYPE(0x%x)", vtx->format);
 	}
@@ -599,6 +579,11 @@ int disasm_a2xx(uint32_t *dwords, int sizedwords, int level, enum shader_t type)
 {
 	instr_cf_t *cfs = (instr_cf_t *)dwords;
 	int idx, max_idx;
+
+	if (!rnn) {
+		rnn = rnn_new(1);
+		rnn_load(rnn, "a2xx");
+	}
 
 	for (idx = 0; ; idx++) {
 		instr_cf_t *cf = &cfs[idx];
