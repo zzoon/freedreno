@@ -1149,8 +1149,7 @@ static void do_query(const char *primtype, uint32_t num_indices)
 	if (n > 1)
 		printf("\n");
 
-	if (num_indices > 0)
-		script_draw(primtype, num_indices);
+	script_draw(primtype, num_indices);
 }
 
 static void cp_im_loadi(uint32_t *dwords, uint32_t sizedwords, int level)
