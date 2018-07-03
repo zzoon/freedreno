@@ -45,7 +45,6 @@
 
 /* ************************************************************************* */
 /* originally based on kernel recovery dump code: */
-#include "adreno_pm4.xml.h"
 
 typedef enum {
 	true = 1, false = 0,
@@ -1213,6 +1212,17 @@ enum state_t {
 	UNKNOWN_4DWORDS,
 };
 
+enum adreno_state_block {
+	SB_VERT_TEX = 0,
+	SB_VERT_MIPADDR = 1,
+	SB_FRAG_TEX = 2,
+	SB_FRAG_MIPADDR = 3,
+	SB_VERT_SHADER = 4,
+	SB_GEOM_SHADER = 5,
+	SB_FRAG_SHADER = 6,
+	SB_COMPUTE_SHADER = 7,
+};
+
 /* TODO there is probably a clever way to let rnndec parse things so
  * we don't have to care about packet format differences across gens
  */
@@ -1777,6 +1787,15 @@ static uint32_t draw_indx_common(uint32_t *dwords, int level)
 
 	return num_indices;
 }
+
+enum pc_di_index_size {
+	INDEX_SIZE_IGN = 0,
+	INDEX_SIZE_16_BIT = 0,
+	INDEX_SIZE_32_BIT = 1,
+	INDEX_SIZE_8_BIT = 2,
+	INDEX_SIZE_INVALID = 0,
+};
+
 static void cp_draw_indx(uint32_t *dwords, uint32_t sizedwords, int level)
 {
 	uint32_t num_indices = draw_indx_common(dwords, level);
@@ -2429,6 +2448,12 @@ static inline uint pm4_calc_odd_parity_bit(uint val)
 			((val) >> 16) ^ ((val) >> 20) ^ ((val) >> 24) ^
 			((val) >> 28)))) & 1;
 }
+
+#define CP_TYPE0_PKT 0x00000000
+#define CP_TYPE2_PKT 0x80000000
+#define CP_TYPE3_PKT 0xc0000000
+#define CP_TYPE4_PKT 0x40000000
+#define CP_TYPE7_PKT 0x70000000
 
 #define pkt_is_type0(pkt) (((pkt) & 0XC0000000) == CP_TYPE0_PKT)
 #define type0_pkt_size(pkt) ((((pkt) >> 16) & 0x3FFF) + 1)
