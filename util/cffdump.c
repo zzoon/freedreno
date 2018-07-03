@@ -45,7 +45,6 @@
 
 /* ************************************************************************* */
 /* originally based on kernel recovery dump code: */
-#include "adreno_common.xml.h"
 #include "adreno_pm4.xml.h"
 
 typedef enum {
@@ -426,32 +425,23 @@ static void reg_vfd_fetch_instr_1_x(const char *name, uint32_t dword, int level)
 
 static void reg_dump_scratch(const char *name, uint32_t dword, int level)
 {
-	unsigned regbase;
+	unsigned r;
 
 	if (quiet(3))
 		return;
 
-	printf("%s:", levels[level]);
-	for (regbase = REG_AXXX_CP_SCRATCH_REG0;
-			regbase <= REG_AXXX_CP_SCRATCH_REG7;
-			regbase++) {
-		printf(" %08x", reg_val(regbase));
-	}
-	printf("\n");
-}
+	r = regbase("CP_SCRATCH[0].REG");
 
-static inline uint32_t REG_A5XX_CP_SCRATCH_REG(uint32_t i0) { return 0x00000b78 + 0x1*i0; }
+	// if not, try old a2xx/a3xx version:
+	if (!r)
+		r = regbase("CP_SCRATCH_REG0");
 
-static void reg_dump_scratch5(const char *name, uint32_t dword, int level)
-{
-	if (quiet(3))
+	if (!r)
 		return;
 
 	printf("%s:%u,%u,%u,%u\n", levels[level],
-			reg_val(REG_A5XX_CP_SCRATCH_REG(4)),
-			reg_val(REG_A5XX_CP_SCRATCH_REG(5)),
-			reg_val(REG_A5XX_CP_SCRATCH_REG(6)),
-			reg_val(REG_A5XX_CP_SCRATCH_REG(7)));
+			reg_val(r + 4), reg_val(r + 5),
+			reg_val(r + 6), reg_val(r + 7));
 }
 
 static void dump_gpuaddr_size(uint64_t gpuaddr, int level, int sizedwords, int quietlvl)
@@ -763,10 +753,10 @@ static struct {
 		REG(TPL1_TP_FS_BORDER_COLOR_BASE_ADDR, reg_dump_gpuaddr),
 		{NULL},
 }, reg_a5xx[] = {
-		REG(CP_SCRATCH[0x4].REG, reg_dump_scratch5),
-		REG(CP_SCRATCH[0x5].REG, reg_dump_scratch5),
-		REG(CP_SCRATCH[0x6].REG, reg_dump_scratch5),
-		REG(CP_SCRATCH[0x7].REG, reg_dump_scratch5),
+		REG(CP_SCRATCH[0x4].REG, reg_dump_scratch),
+		REG(CP_SCRATCH[0x5].REG, reg_dump_scratch),
+		REG(CP_SCRATCH[0x6].REG, reg_dump_scratch),
+		REG(CP_SCRATCH[0x7].REG, reg_dump_scratch),
 		REG(SP_VS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_VS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
 		REG(SP_HS_OBJ_START_LO, reg_gpuaddr_lo),
@@ -843,6 +833,11 @@ static struct {
 
 		{NULL},
 }, reg_a6xx[] = {
+		REG(CP_SCRATCH[0x4].REG, reg_dump_scratch),
+		REG(CP_SCRATCH[0x5].REG, reg_dump_scratch),
+		REG(CP_SCRATCH[0x6].REG, reg_dump_scratch),
+		REG(CP_SCRATCH[0x7].REG, reg_dump_scratch),
+
 		REG(SP_VS_OBJ_START_LO, reg_gpuaddr_lo),
 		REG(SP_VS_OBJ_START_HI, reg_disasm_gpuaddr_hi),
 		REG(SP_HS_OBJ_START_LO, reg_gpuaddr_lo),
