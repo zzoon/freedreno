@@ -1,3 +1,0 @@
-[submodule "envytools"]
-	path = envytools
-	url = git://github.com/freedreno/envytools.git

@@ -95,7 +95,7 @@ LFLAGS = $(LFLAGS_2D) $(LFLAGS_3D) $(LFLAGS_CL) $(LDFLAGS_MISC) -ldl -lc
 
 all: tests-3d tests-2d tests-cl
 
-utils: libwrap.so $(UTILS) redump cffdump pgmdump zdump
+utils: libwrap.so $(UTILS) redump zdump
 
 tests-2d: $(TESTS_2D)
 
@@ -104,7 +104,7 @@ tests-3d: $(TESTS_3D)
 tests-cl: $(TESTS_CL)
 
 clean:
-	rm -f *.bmp *.dat *.so *.o *.rd *.html *-cffdump.txt *-pgmdump.txt *.log redump cffdump pgmdump $(TESTS)
+	rm -f *.bmp *.dat *.so *.o *.rd *.html *.log redump $(TESTS)
 
 wrap%.o: wrap%.c
 	$(CC) -fPIC -g -c -ldl -llog -c -Iincludes -Iutil $< -o $@
@@ -125,19 +125,6 @@ test-%: test-%.o $(UTILS)
 redump: redump.c
 	gcc -g $^ -o $@
 
-envytools/Makefile:
-	(cd envytools; cmake .)
-
-envytools/rnn/librnn.a:
-envytools/util/libenvyutil.a:
-	(cd envytools; make rnn)
-
-RNN = envytools/rnn/librnn.a envytools/util/libenvyutil.a
-cffdump: cffdump.c disasm-a2xx.c disasm-a3xx.c script.c io.c rnnutil.c $(RNN)
-	gcc -g $(CFLAGS) -Wall -Wno-packed-bitfield-compat -I. -Ienvytools/include $^ -lxml2 -llua -larchive -o $@
-
-pgmdump: pgmdump.c disasm-a2xx.c disasm-a3xx.c io.c
-	gcc -g $(CFLAGS) -Wno-packed-bitfield-compat -I. $^ -larchive -o $@
 zdump: zdump.c
 	gcc -g $(CFLAGS) -Wall -Wno-packed-bitfield-compat -I. $^ -o $@
 
