@@ -232,6 +232,14 @@ LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE    := test-msaa
+LOCAL_SRC_FILES := tests-3d/test-msaa.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC -std=c99
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
 LOCAL_MODULE    := test-noattach-fbo
 LOCAL_SRC_FILES := tests-3d/test-noattach-fbo.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
@@ -244,7 +252,7 @@ LOCAL_MODULE    := test-perf
 LOCAL_SRC_FILES := tests-3d/test-perf.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
-LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv2
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -388,7 +396,7 @@ LOCAL_MODULE    := test-tex-layout
 LOCAL_SRC_FILES := tests-3d/test-tex-layout.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC -std=c99
-LOCAL_LDLIBS := -llog -lc -ldl
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv2
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -513,4 +521,41 @@ LOCAL_SRC_FILES := tests-2d/test-ubwc2d.c tests-2d/c2d2-shim.c
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
 LOCAL_CFLAGS := -DBIONIC
 LOCAL_LDLIBS := -lc -ldl -llog -lm
+include $(BUILD_EXECUTABLE)
+
+#
+# CL Test Apps:
+#
+
+include $(CLEAR_VARS)
+# TODO this needs to be diff for 32 vs 64 bit
+P = ~/src/db820c/z4/system-z4-full
+LOCAL_MODULE    := test-imagecl
+LOCAL_SRC_FILES := tests-cl/test-imagecl.c tests-cl/shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -lc++ -ldl -llog -lm
+LOCAL_LDLIBS := $(P)/vendor/lib64/libOpenCL.so -rpath $(P)/vendor/lib64 -rpath $(P)/lib64
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+# TODO this needs to be diff for 32 vs 64 bit
+P = ~/src/db820c/z4/system-z4-full
+LOCAL_MODULE    := test-kernel
+LOCAL_SRC_FILES := tests-cl/test-kernel.c tests-cl/shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -lc++ -ldl -llog -lm
+LOCAL_LDLIBS := $(P)/vendor/lib64/libOpenCL.so -rpath $(P)/vendor/lib64 -rpath $(P)/lib64
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+# TODO this needs to be diff for 32 vs 64 bit
+P = ~/src/db820c/z4/system-z4-full
+LOCAL_MODULE    := test-simple
+LOCAL_SRC_FILES := tests-cl/test-simple.c tests-cl/shim.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC
+LOCAL_LDLIBS := -lc -lc++ -ldl -llog -lm
+LOCAL_LDLIBS := $(P)/vendor/lib64/libOpenCL.so -rpath $(P)/vendor/lib64 -rpath $(P)/lib64
 include $(BUILD_EXECUTABLE)
