@@ -134,7 +134,10 @@ void rd_write_section(enum rd_sect_type type, const void *buf, int sz)
 	uint32_t val = ~0;
 
 	if (fd == -1) {
-		rd_start("unknown", "unknown");
+		const char *name = getenv("TESTNAME");
+		if (!name)
+			name = "unknown";
+		rd_start(name, "");
 		printf("opened rd, %d\n", fd);
 	}
 
