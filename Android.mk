@@ -488,6 +488,33 @@ LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
 include $(BUILD_EXECUTABLE)
 
 #
+# Half float Tests:
+#
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-half-1
+LOCAL_SRC_FILES := tests-3d/test-half-1.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC -std=c99
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-half-2
+LOCAL_SRC_FILES := tests-3d/test-half-2.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC -std=c99
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE    := test-full-2
+LOCAL_SRC_FILES := tests-3d/test-full-2.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/includes $(LOCAL_PATH)/util
+LOCAL_CFLAGS := -DBIONIC -std=c99
+LOCAL_LDLIBS := -llog -lc -ldl -lEGL -lGLESv3
+include $(BUILD_EXECUTABLE)
+
+#
 # 2D Test Apps:
 #
 
